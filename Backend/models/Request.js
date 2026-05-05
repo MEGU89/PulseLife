@@ -2,10 +2,15 @@ import mongoose from "mongoose";
 
 const requestSchema = new mongoose.Schema(
   {
+    requestType: {
+      type: String,
+      enum: ["blood"],
+      default: "blood",
+    },
+
     bloodType: {
       type: String,
-      required: true,
-      enum: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
+      default: null,
     },
 
     unitsNeeded: {
@@ -33,9 +38,14 @@ const requestSchema = new mongoose.Schema(
       default: "LOW",
     },
 
+    searchRadiusKm: {
+      type: Number,
+      default: null,
+    },
+    // Legacy field kept for older records during transition.
     locationKm: {
       type: Number,
-      required: true,
+      default: null,
     },
     // Optional exact coordinates for hospital location
     location: {

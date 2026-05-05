@@ -29,7 +29,7 @@ export const registerUser = async (req, res) => {
       }
     }
 
-    // Donors MUST have bloodType
+    // Donors must provide blood type during registration.
     if (role === "donor" && !bloodType) {
       return res.status(400).json({
         success: false,

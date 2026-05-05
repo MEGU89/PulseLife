@@ -3,6 +3,9 @@ import Request from "../models/Request.js";
 import User from "../models/User.js";
 import Donation from "../models/Donation.js";
 import { sendEmail } from "../utils/email.js";
+import { formatDateInputValue, parseScheduleDate } from "../utils/scheduleDate.js";
+
+const DONOR_COOLDOWN_DAYS = 56;
 
 /* ---------------------------------------------
    1️⃣ DONOR CREATES DONATION SCHEDULE
@@ -13,6 +16,58 @@ export const scheduleDonation = async (req, res) => {
 
     if (!donorId || !requestId || !donorLocation || !contact || !date || !time) {
       return res.status(400).json({ success: false, message: "All fields required" });
+    }
+
+    const donor = await User.findById(donorId);
+    if (!donor) return res.status(404).json({ success: false, message: "Donor not found" });
+
+    const request = await Request.findById(requestId);
+    if (!request) return res.status(404).json({ success: false, message: "Request not found" });
+
+    if (request.status !== "Pending") {
+      return res.status(409).json({ success: false, message: "This request is no longer active." });
+    }
+
+    const requestedScheduleDate = parseScheduleDate(date, time);
+    if (!requestedScheduleDate) {
+      return res.status(400).json({ success: false, message: "Invalid schedule date or time" });
+    }
+
+    const priorSchedules = await DonationSchedule.find({
+      donorId,
+      status: { $in: ["accepted", "completed"] },
+    })
+      .select("date time status")
+      .lean();
+
+    let latestConfirmedSchedule = null;
+    let latestConfirmedDate = null;
+
+    for (const priorSchedule of priorSchedules) {
+      const parsedDate = parseScheduleDate(priorSchedule.date, priorSchedule.time || "00:00");
+      if (!parsedDate) continue;
+
+      if (!latestConfirmedDate || parsedDate > latestConfirmedDate) {
+        latestConfirmedDate = parsedDate;
+        latestConfirmedSchedule = priorSchedule;
+      }
+    }
+
+    if (latestConfirmedDate) {
+      const nextEligibleDate = new Date(latestConfirmedDate);
+      nextEligibleDate.setUTCDate(nextEligibleDate.getUTCDate() + DONOR_COOLDOWN_DAYS);
+
+      if (requestedScheduleDate < nextEligibleDate) {
+        const nextEligibleDateValue = formatDateInputValue(nextEligibleDate);
+
+        return res.status(409).json({
+          success: false,
+          message: `You can schedule your next donation after ${nextEligibleDateValue}.`,
+          cooldownDays: DONOR_COOLDOWN_DAYS,
+          nextEligibleDate: nextEligibleDateValue,
+          lastSchedule: latestConfirmedSchedule,
+        });
+      }
     }
 
     const schedule = await DonationSchedule.create({
@@ -26,9 +81,6 @@ export const scheduleDonation = async (req, res) => {
       status: "pending",
       hospitalResponse: "none"
     });
-
-    const donor = await User.findById(donorId);
-    const request = await Request.findById(requestId);
 
     const hospitalUser = await User.findOne({ fullName: request.hospital });
 
@@ -147,6 +199,12 @@ export const updateScheduleStatus = async (req, res) => {
     const request = await Request.findById(schedule.requestId);
     const hospital = await User.findOne({ fullName: request.hospital });
 
+    if (action === "accepted" && request) {
+      request.confirmationStatus = "Confirmed";
+      request.confirmedBy = schedule.donorId;
+      await request.save();
+    }
+
     // Format hospital location HTML
     const hospitalLocationHtml = hospital && hospital.location ? `
       <div style="background-color: #f0f8ff; padding: 12px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #4A90E2;">
@@ -263,6 +321,8 @@ export const markDonationCompleted = async (req, res) => {
 
     const request = await Request.findById(schedule.requestId._id);
     request.status = "Fulfilled";
+    request.confirmationStatus = "Confirmed";
+    request.confirmedBy = schedule.donorId;
     await request.save();
 
     // Broadcast request fulfilled status to all dashboards
@@ -271,6 +331,8 @@ export const markDonationCompleted = async (req, res) => {
       io.emit("request_fulfilled", {
         requestId: request._id,
         status: "Fulfilled",
+        confirmationStatus: "Confirmed",
+        confirmedBy: schedule.donorId,
         donorId: schedule.donorId,
         bloodType: request.bloodType,
         unitsNeeded: request.unitsNeeded,

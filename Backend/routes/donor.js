@@ -1,31 +1,7 @@
-// // routes/donor.js
-// import express from "express";
-// import { 
-//   addDonation,
-//   getDonationHistory,
-//   getUrgentRequests,
-//   getScheduleHistory       // <-- correct name from donorController
-// } from "../controllers/donorController.js";
-
-// const router = express.Router();
-
-// // ⭐ Fetch donor donation history
-// router.get("/history/:donorId", getDonationHistory);
-
-// // ⭐ Fetch donor scheduled donations
-// router.get("/schedules/:donorId", getScheduleHistory);
-
-// // ⭐ Urgent requests for donor dashboard
-// router.get("/requests", getUrgentRequests);
-
-// // ⭐ Add a new donation entry
-// router.post("/add-donation", addDonation);
-
-// export default router;
-// routes/donor.js
 import express from "express";
 import User from "../models/User.js";
 import DonationSchedule from "../models/DonationSchedule.js";
+import { formatDateInputValue, parseScheduleDate } from "../utils/scheduleDate.js";
 import {
   addDonation,
   getDonationHistory,
@@ -106,25 +82,43 @@ export default function donorRoutes(io) {
     try {
       const { donorId } = req.params;
 
-      // Find the most recent completed or accepted schedule
-      const lastSchedule = await DonationSchedule.findOne({
+      const schedules = await DonationSchedule.find({
         donorId,
         status: { $in: ["completed", "accepted"] }
       })
-        .sort({ date: -1 })
         .lean();
+
+      let lastSchedule = null;
+      let lastScheduleDate = null;
+
+      for (const schedule of schedules) {
+        const parsedDate = parseScheduleDate(schedule.date, schedule.time || "00:00");
+        if (!parsedDate) continue;
+
+        if (!lastScheduleDate || parsedDate > lastScheduleDate) {
+          lastSchedule = schedule;
+          lastScheduleDate = parsedDate;
+        }
+      }
 
       if (!lastSchedule) {
         return res.json({ 
           success: true, 
           lastDonationDate: null,
+          nextEligibleDate: null,
+          cooldownActive: false,
           message: "No previous donations found"
         });
       }
 
+      const nextEligibleDate = new Date(lastScheduleDate);
+      nextEligibleDate.setUTCDate(nextEligibleDate.getUTCDate() + 56);
+
       return res.json({
         success: true,
         lastDonationDate: lastSchedule.date,
+        nextEligibleDate: formatDateInputValue(nextEligibleDate),
+        cooldownActive: nextEligibleDate > new Date(),
         lastSchedule
       });
 

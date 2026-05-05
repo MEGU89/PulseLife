@@ -63,7 +63,7 @@ export const getUrgentRequests = async (req, res) => {
       bloodType: r.bloodType,
       unitsNeeded: r.unitsNeeded,
       urgency: r.urgency,
-      locationKm: r.locationKm || Math.floor(Math.random() * 10) + 1,
+      searchRadiusKm: r.searchRadiusKm ?? r.locationKm ?? null,
       status: r.status,
     }));
 

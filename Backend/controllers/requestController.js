@@ -2,20 +2,6 @@ import Request from "../models/Request.js";
 import User from "../models/User.js";
 import { sendEmail } from "../utils/email.js";
 
-/* Utility: Haversine distance (km) */
-function haversineKm(lat1, lon1, lat2, lon2) {
-  function toRad(x) { return (x * Math.PI) / 180; }
-  const R = 6371; // km
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
-
 /* Blood compatibility simple check */
 function isCompatible(requestBlood, donorBlood) {
   if (!requestBlood || !donorBlood) return false;
@@ -35,6 +21,23 @@ function isCompatible(requestBlood, donorBlood) {
 
   const donorsReceivers = compat[donorBlood] || [];
   return donorsReceivers.includes(requestBlood);
+}
+
+function haversineKm(fromLat, fromLng, toLat, toLng) {
+  const toRadians = (value) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const deltaLat = toRadians(toLat - fromLat);
+  const deltaLng = toRadians(toLng - fromLng);
+
+  const a =
+    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+    Math.cos(toRadians(fromLat)) *
+      Math.cos(toRadians(toLat)) *
+      Math.sin(deltaLng / 2) *
+      Math.sin(deltaLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
 }
 
 // Function to convert coordinates to readable address using reverse geocoding
@@ -86,17 +89,50 @@ const getAddressFromCoordinates = async (latitude, longitude) => {
 // Create request and notify donors
 export const addRequest = async (req, res) => {
   try {
-    const { bloodType, unitsNeeded, hospital, urgency, locationKm, requestedBy, recipientName, location, isRecipientRequest } = req.body;
-    if (!bloodType || !unitsNeeded || !urgency || !locationKm || !requestedBy) {
+    const {
+      bloodType,
+      unitsNeeded,
+      hospital,
+      urgency,
+      searchRadiusKm,
+      locationKm,
+      requestedBy,
+      recipientName,
+      location,
+      isRecipientRequest,
+    } = req.body;
+
+    const requestOwner = requestedBy
+      ? await User.findById(requestedBy).select("fullName location")
+      : null;
+
+    const resolvedSearchRadiusKm = searchRadiusKm ?? locationKm ?? null;
+    const resolvedLocation =
+      location && location.latitude != null && location.longitude != null
+        ? { latitude: location.latitude, longitude: location.longitude }
+        : requestOwner?.location &&
+            requestOwner.location.latitude != null &&
+            requestOwner.location.longitude != null
+          ? {
+              latitude: requestOwner.location.latitude,
+              longitude: requestOwner.location.longitude,
+            }
+          : null;
+
+    if (!unitsNeeded || !urgency || !requestedBy) {
       return res.status(400).json({ success: false, message: "Missing required fields" });
     }
 
+    if (!bloodType) {
+      return res.status(400).json({ success: false, message: "Blood type is required for requests" });
+    }
+
     const payload = {
+      requestType: "blood",
       bloodType,
       unitsNeeded,
-      hospital: hospital || null,
+      hospital: hospital || requestOwner?.fullName || null,
       urgency,
-      locationKm,
       requestedBy,
       recipientName,
       isRecipientRequest: !!isRecipientRequest,
@@ -104,9 +140,12 @@ export const addRequest = async (req, res) => {
       confirmationStatus: "Pending",
     };
 
-    // if a precise hospital location is provided, store it
-    if (location && location.latitude != null && location.longitude != null) {
-      payload.location = { latitude: location.latitude, longitude: location.longitude };
+    if (resolvedSearchRadiusKm != null) {
+      payload.searchRadiusKm = resolvedSearchRadiusKm;
+    }
+
+    if (resolvedLocation) {
+      payload.location = resolvedLocation;
     }
 
     const newRequest = await Request.create(payload);
@@ -116,11 +155,12 @@ export const addRequest = async (req, res) => {
     if (io) {
       io.emit("request_created", {
         _id: newRequest._id,
+        requestType: "blood",
         bloodType,
         unitsNeeded,
-        hospital,
+        hospital: newRequest.hospital,
         urgency,
-        locationKm,
+        searchRadiusKm: resolvedSearchRadiusKm,
         location: newRequest.location || null,
         recipientName: newRequest.recipientName || null,
         isRecipientRequest: newRequest.isRecipientRequest || false,
@@ -131,38 +171,48 @@ export const addRequest = async (req, res) => {
 
     // Also notify matching donors via socket.io
     const onlineMap = req.app.get("onlineMap") || new Map();
-
-    // find available donors with blood compatibility
     const donors = await User.find({
       role: "donor",
       available: true,
-      bloodType: { $exists: true, $ne: null }
+      bloodType: { $exists: true, $ne: null },
     });
 
-    // For each donor compute compatibility (only send to donors who can donate the requested blood type)
-    const matches = [];
-    for (const d of donors) {
-      if (!d.bloodType) continue;
-      if (!isCompatible(bloodType, d.bloodType)) continue;
-      matches.push(d);
-    }
+    const matches = donors.filter((donor) => donor.bloodType && isCompatible(bloodType, donor.bloodType));
 
     // Notify only donors that are online
     for (const donor of matches) {
       const socketId = onlineMap.get(donor._id.toString());
       if (socketId) {
+        const distanceKm =
+          donor.location?.latitude != null &&
+          donor.location?.longitude != null &&
+          newRequest.location?.latitude != null &&
+          newRequest.location?.longitude != null
+            ? Math.round(
+                haversineKm(
+                  donor.location.latitude,
+                  donor.location.longitude,
+                  newRequest.location.latitude,
+                  newRequest.location.longitude,
+                ) * 10,
+              ) / 10
+            : null;
+
         io.to(socketId).emit("new_request", {
           requestId: newRequest._id,
+          requestType: "blood",
           bloodType,
           unitsNeeded,
-          hospital,
+          hospital: newRequest.hospital,
           urgency,
-          locationKm,
+          searchRadiusKm: resolvedSearchRadiusKm,
+          location: newRequest.location || null,
+          distanceKm,
         });
       }
     }
 
-    res.json({ success: true, message: "Blood request created successfully", request: newRequest });
+    res.json({ success: true, message: "Request created successfully", request: newRequest });
 
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -221,6 +271,8 @@ export const getAllRequests = async (req, res) => {
         reqObj.address = hospitalAddress;
         reqObj.hospitalName = hospitalUser.fullName; // Full hospital name
       }
+
+      reqObj.searchRadiusKm = reqObj.searchRadiusKm ?? reqObj.locationKm ?? null;
       
       return reqObj;
     }));
@@ -253,14 +305,18 @@ export const confirmRequest = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid action. Must be 'Confirmed' or 'Rejected'" });
     }
 
+    if (action === "Confirmed" && !confirmedBy) {
+      return res.status(400).json({ success: false, message: "confirmedBy is required when confirming a request" });
+    }
+
     const request = await Request.findByIdAndUpdate(
       requestId,
       {
         confirmationStatus: action,
-        confirmedBy,
+        confirmedBy: action === "Confirmed" ? confirmedBy : null,
         confirmationNotes: notes || null,
       },
-      { new: true }
+      { returnDocument: "after", runValidators: true }
     ).populate("requestedBy", "email name");
 
     if (!request) {

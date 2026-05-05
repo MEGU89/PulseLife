@@ -1,0 +1,7 @@
+{
+  "/hospital/dashboard/page": "app/hospital/dashboard/page.js",
+  "/recipient/settings/page": "app/recipient/settings/page.js",
+  "/donor/dashboard/page": "app/donor/dashboard/page.js",
+  "/donor/profile/page": "app/donor/profile/page.js",
+  "/recipient/dashboard/page": "app/recipient/dashboard/page.js"
+}

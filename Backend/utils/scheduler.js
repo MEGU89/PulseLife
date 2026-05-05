@@ -4,6 +4,27 @@ import Request from "../models/Request.js";
 import User from "../models/User.js";
 import { sendEmail } from "./email.js";
 
+function getScheduledDate(dateValue, timeValue) {
+  if (!dateValue || !timeValue) return null;
+
+  const [hours, minutes] = timeValue.split(":").map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+
+  if (!dateValue.includes("-")) return null;
+
+  const parts = dateValue.split("-").map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+
+  const [first, second, third] = parts;
+  const isIsoFormat = String(first).length === 4;
+  const year = isIsoFormat ? first : third;
+  const month = second;
+  const day = isIsoFormat ? third : first;
+
+  // Store schedule comparison in IST by converting to equivalent UTC timestamp.
+  return new Date(year, month - 1, day, hours - 5, minutes - 30);
+}
+
 /**
  * Initialize donation completion scheduler
  * Checks every minute if any scheduled donations should be marked as completed
@@ -13,9 +34,9 @@ export const initializeDonationScheduler = (io) => {
   // Run every minute to check for completed donations
   cron.schedule("* * * * *", async () => {
     try {
-      // Get all pending donations with full details
+      // Get all accepted donations with full details
       const pendingSchedules = await DonationSchedule.find({
-        status: "pending",
+        status: "accepted",
       })
         .populate("donorId")
         .populate({
@@ -31,13 +52,8 @@ export const initializeDonationScheduler = (io) => {
       for (const schedule of pendingSchedules) {
         if (!schedule.date || !schedule.time) continue;
 
-        // Parse date and time in IST
-        // Format: date = "12-12-2025" (DD-MM-YYYY), time = "05:30" (HH:MM 24-hour)
-        const [day, month, year] = schedule.date.split("-").map(Number);
-        const [hours, minutes] = schedule.time.split(":").map(Number);
-
-        // Create a date object in UTC, then adjust for IST (UTC+5:30)
-        const scheduledDate = new Date(year, month - 1, day, hours - 5, minutes - 30);
+        const scheduledDate = getScheduledDate(schedule.date, schedule.time);
+        if (!scheduledDate) continue;
 
         // Check if scheduled time has passed
         if (now >= scheduledDate) {
@@ -47,18 +63,19 @@ export const initializeDonationScheduler = (io) => {
           const updatedSchedule = await DonationSchedule.findByIdAndUpdate(
             schedule._id,
             { status: "completed" },
-            { new: true }
+            { returnDocument: "after" }
           );
 
-          // Update associated request with successful confirmation
+          // Update associated request with confirmed donor and fulfilled status
           if (schedule.requestId) {
             const updatedRequest = await Request.findByIdAndUpdate(
               schedule.requestId._id,
               {
-                confirmationStatus: "Successful",
+                confirmedBy: schedule.donorId?._id || schedule.donorId,
+                confirmationStatus: "Confirmed",
                 status: "Fulfilled",
               },
-              { new: true }
+              { returnDocument: "after", runValidators: true }
             );
 
             // Get donor and hospital details for email
@@ -82,7 +99,7 @@ export const initializeDonationScheduler = (io) => {
                     <p><strong>Units Needed:</strong> ${request.unitsNeeded}</p>
                     <p><strong>Scheduled Date:</strong> ${schedule.date}</p>
                     <p><strong>Scheduled Time:</strong> ${schedule.time}</p>
-                    <p><strong>Status:</strong> <span style="color: #22c55e; font-weight: bold;">Successful</span></p>
+                    <p><strong>Status:</strong> <span style="color: #22c55e; font-weight: bold;">Confirmed</span></p>
                   </div>
                   
                   <p>Thank you for saving lives! Your donation is crucial and will help someone in need.</p>
@@ -138,7 +155,7 @@ export const initializeDonationScheduler = (io) => {
                 scheduleId: schedule._id,
                 requestId: schedule.requestId._id,
                 donorId: schedule.donorId._id,
-                confirmationStatus: "Successful",
+                confirmationStatus: "Confirmed",
                 status: "Fulfilled",
                 completedAt: new Date(),
               });
