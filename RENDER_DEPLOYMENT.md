@@ -2,8 +2,8 @@
 
 This repo is set up to deploy on Render as two separate services:
 
-- `pulsebank-api` for the Express backend
-- `pulsebank-web` for the Next.js frontend
+- `pulselife-api` for the Express backend
+- `pulselife-web` for the Next.js frontend
 
 The Blueprint file is [render.yaml](./render.yaml).
 
@@ -24,18 +24,18 @@ Render deploys from a Git provider, so make sure the latest code is in your remo
 1. In Render, click `New` -> `Blueprint`.
 2. Connect the repository that contains this project.
 3. Render will detect [render.yaml](./render.yaml) and propose two services:
-   - `pulsebank-api`
-   - `pulsebank-web`
+   - `pulselife-api`
+   - `pulselife-web`
 4. Continue and create them.
 
 ## 3. Fill the required environment variables
 
 After Render creates the services, set these values:
 
-### Backend: `pulsebank-api`
+### Backend: `pulselife-api`
 
 - `MONGO_URI` = your MongoDB Atlas connection string
-- `FRONTEND_URL` = your frontend Render URL, for example `https://pulsebank-web.onrender.com`
+- `FRONTEND_URL` = your frontend Render URL, for example `https://pulselife-web.onrender.com`
 
 Optional backend variables:
 
@@ -47,16 +47,16 @@ Optional backend variables:
 
 `JWT_SECRET` is generated automatically by the Blueprint.
 
-### Frontend: `pulsebank-web`
+### Frontend: `pulselife-web`
 
-- `NEXT_PUBLIC_API_URL` = your backend Render URL, for example `https://pulsebank-api.onrender.com`
+- `NEXT_PUBLIC_API_URL` = your backend Render URL, for example `https://pulselife-api.onrender.com`
 
 ## 4. Redeploy once URLs are set
 
 Because the frontend and backend need each other's public URLs, do one manual redeploy for both services after you save:
 
-- `FRONTEND_URL` on `pulsebank-api`
-- `NEXT_PUBLIC_API_URL` on `pulsebank-web`
+- `FRONTEND_URL` on `pulselife-api`
+- `NEXT_PUBLIC_API_URL` on `pulselife-web`
 
 ## 5. Open the app
 

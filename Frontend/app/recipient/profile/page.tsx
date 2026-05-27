@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { FieldShell, LoadingView, PageSection, Panel, inputClassName } from "@/components/app-ui";
+import { LocationDetector } from "@/components/location-detector";
 import { RoleLayout } from "@/components/role-layout";
 import { apiJson, jsonBody } from "@/lib/api";
 import { saveStoredSession } from "@/lib/session";
@@ -16,6 +17,8 @@ export default function RecipientProfilePage() {
     email: "",
     phone: "",
     address: "",
+    latitude: "",
+    longitude: "",
   });
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -28,6 +31,8 @@ export default function RecipientProfilePage() {
       email: user.email || "",
       phone: user.phone || "",
       address: user.address || "",
+      latitude: user.location?.latitude ? String(user.location.latitude) : "",
+      longitude: user.location?.longitude ? String(user.location.longitude) : "",
     });
   }, [user]);
 
@@ -44,6 +49,13 @@ export default function RecipientProfilePage() {
         body: jsonBody({
           userId: user.id || user._id,
           ...form,
+          location:
+            form.latitude && form.longitude
+              ? {
+                  latitude: Number(form.latitude),
+                  longitude: Number(form.longitude),
+                }
+              : undefined,
         }),
       });
 
@@ -80,14 +92,32 @@ export default function RecipientProfilePage() {
               </FieldShell>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
-              <FieldShell label="Phone">
-                <input className={inputClassName()} value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} required />
-              </FieldShell>
-              <FieldShell label="Address">
-                <input className={inputClassName()} value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} placeholder="Address or area" />
-              </FieldShell>
-            </div>
+            <FieldShell label="Phone">
+              <input className={inputClassName()} value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} required />
+            </FieldShell>
+
+            <LocationDetector
+              label="Address and location"
+              description="Optional. Auto-detect your current place or type your address and convert it into coordinates."
+              initialAddress={form.address}
+              initialLocation={
+                form.latitude && form.longitude
+                  ? {
+                      latitude: Number(form.latitude),
+                      longitude: Number(form.longitude),
+                    }
+                  : null
+              }
+              onLocationDetected={(latitude, longitude, address) =>
+                setForm((current) => ({
+                  ...current,
+                  latitude: String(latitude),
+                  longitude: String(longitude),
+                  address: address || current.address,
+                }))
+              }
+              onAddressChange={(address) => setForm((current) => ({ ...current, address }))}
+            />
 
             {message && <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}
 

@@ -39,7 +39,7 @@ export default function AboutPage() {
           <div className="space-y-4">
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-rose-500">About the project</p>
-              <h1 className="text-4xl font-black tracking-tight text-slate-950 md:text-5xl">Pulse Bank is designed to make urgent blood coordination feel lighter.</h1>
+              <h1 className="text-4xl font-black tracking-tight text-slate-950 md:text-5xl">Pulselife is designed to make urgent blood coordination feel lighter.</h1>
               <p className="max-w-3xl text-sm leading-7 text-slate-600">
                 The project brings donors, hospitals, and recipients into one shared system where requests, schedules,
                 and outcomes are easier to understand. Instead of cluttered screens, the product aims for clear
@@ -70,7 +70,7 @@ export default function AboutPage() {
         </PageSection>
 
         <Panel className="space-y-4">
-          <h2 className="text-2xl font-black tracking-tight text-slate-950">Current role flows inside Pulse Bank</h2>
+          <h2 className="text-2xl font-black tracking-tight text-slate-950">Current role flows inside Pulselife</h2>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-[24px] bg-slate-50 p-5">
               <h3 className="text-lg font-black tracking-tight text-slate-900">Donor</h3>

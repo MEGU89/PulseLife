@@ -27,7 +27,7 @@ export function BrandMark({
       </span>
       <span className="flex flex-col">
         <span className={cn("font-black tracking-tight", compact ? "text-lg" : "text-xl")}>
-          Pulse Bank
+          Pulselife
         </span>
         {!compact && (
           <span className="text-xs font-medium uppercase tracking-[0.28em] text-slate-500">

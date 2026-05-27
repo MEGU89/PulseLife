@@ -1,12 +1,18 @@
 import express from "express";
+import Donation from "../models/Donation.js";
 import User from "../models/User.js";
-import DonationSchedule from "../models/DonationSchedule.js";
-import { formatDateInputValue, parseScheduleDate } from "../utils/scheduleDate.js";
+import {
+  DONATION_COOLDOWN_DAYS,
+  addDays,
+  getAnnualDonationSummary,
+} from "../utils/donorBenefits.js";
+import { formatDateInputValue } from "../utils/scheduleDate.js";
 import {
   addDonation,
   getDonationHistory,
   getUrgentRequests,
-  getScheduleHistory
+  getScheduleHistory,
+  setAvailability,
 } from "../controllers/donorController.js";
 
 export default function donorRoutes(io) {
@@ -16,47 +22,7 @@ export default function donorRoutes(io) {
       ⭐ Update Donor Availability + Location
       POST /donor/availability
   -------------------------------------------*/
-  router.post("/availability", async (req, res) => {
-    try {
-      const { donorId, available, latitude, longitude } = req.body;
-
-      if (!donorId) {
-        return res.status(400).json({ success: false, message: "Donor ID is required" });
-      }
-
-      const donor = await User.findById(donorId);
-      if (!donor) {
-        return res.status(404).json({ success: false, message: "Donor not found" });
-      }
-
-      donor.available = available;
-
-      if (available && latitude && longitude) {
-        donor.location = { latitude, longitude };
-      }
-
-      await donor.save();
-
-      // 🔥 Real-time emit to ALL hospitals
-      io.emit("donor_status_changed", {
-        donorId: donor._id,
-        available: donor.available,
-        location: donor.location || null,
-        bloodType: donor.bloodType,
-        fullName: donor.fullName
-      });
-
-      return res.json({
-        success: true,
-        message: "Donor availability updated",
-        donor
-      });
-
-    } catch (error) {
-      console.error("Availability error:", error);
-      return res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  router.post("/availability", setAvailability);
 
   /* ------------------------------------------
       ⭐ Existing routes (KEEPED EXACTLY)
@@ -81,45 +47,57 @@ export default function donorRoutes(io) {
   router.get("/last-donation/:donorId", async (req, res) => {
     try {
       const { donorId } = req.params;
+      const donor = await User.findById(donorId).select("gender");
 
-      const schedules = await DonationSchedule.find({
-        donorId,
-        status: { $in: ["completed", "accepted"] }
-      })
+      const donations = await Donation.find({ donorId })
+        .select("date")
         .lean();
 
-      let lastSchedule = null;
-      let lastScheduleDate = null;
+      const annualSummary = getAnnualDonationSummary(donations, donor?.gender, new Date());
+      const validDonationDates = donations
+        .map((donation) => ({ ...donation, parsedDate: donation.date ? new Date(donation.date) : null }))
+        .filter((donation) => donation.parsedDate && !Number.isNaN(donation.parsedDate.getTime()))
+        .sort((left, right) => right.parsedDate - left.parsedDate);
 
-      for (const schedule of schedules) {
-        const parsedDate = parseScheduleDate(schedule.date, schedule.time || "00:00");
-        if (!parsedDate) continue;
+      const lastDonation = validDonationDates[0] || null;
+      const lastDonationDate = lastDonation?.parsedDate || null;
 
-        if (!lastScheduleDate || parsedDate > lastScheduleDate) {
-          lastSchedule = schedule;
-          lastScheduleDate = parsedDate;
-        }
-      }
-
-      if (!lastSchedule) {
+      if (!lastDonationDate) {
         return res.json({ 
           success: true, 
           lastDonationDate: null,
           nextEligibleDate: null,
+          cooldownDays: DONATION_COOLDOWN_DAYS,
           cooldownActive: false,
+          cooldownRemainingDays: 0,
+          annualDonationCount: annualSummary.annualDonationCount,
+          annualDonationLimit: annualSummary.annualDonationLimit,
+          annualDonationRemaining: annualSummary.annualDonationRemaining,
+          nextAnnualEligibleDate: formatDateInputValue(annualSummary.nextAnnualEligibleDate),
+          donorGender: donor?.gender || null,
           message: "No previous donations found"
         });
       }
 
-      const nextEligibleDate = new Date(lastScheduleDate);
-      nextEligibleDate.setUTCDate(nextEligibleDate.getUTCDate() + 56);
+      const nextEligibleDate = addDays(lastDonationDate, DONATION_COOLDOWN_DAYS);
+      const cooldownRemainingDays =
+        nextEligibleDate && nextEligibleDate > new Date()
+          ? Math.ceil((nextEligibleDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          : 0;
 
       return res.json({
         success: true,
-        lastDonationDate: lastSchedule.date,
+        lastDonationDate: lastDonation.date,
         nextEligibleDate: formatDateInputValue(nextEligibleDate),
+        cooldownDays: DONATION_COOLDOWN_DAYS,
         cooldownActive: nextEligibleDate > new Date(),
-        lastSchedule
+        cooldownRemainingDays,
+        annualDonationCount: annualSummary.annualDonationCount,
+        annualDonationLimit: annualSummary.annualDonationLimit,
+        annualDonationRemaining: annualSummary.annualDonationRemaining,
+        nextAnnualEligibleDate: formatDateInputValue(annualSummary.nextAnnualEligibleDate),
+        donorGender: donor?.gender || null,
+        lastDonation,
       });
 
     } catch (error) {

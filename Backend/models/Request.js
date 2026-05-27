@@ -4,13 +4,19 @@ const requestSchema = new mongoose.Schema(
   {
     requestType: {
       type: String,
-      enum: ["blood"],
+      enum: ["blood", "organ"],
       default: "blood",
     },
 
     bloodType: {
       type: String,
       default: null,
+    },
+
+    organType: {
+      type: String,
+      default: null,
+      trim: true,
     },
 
     unitsNeeded: {
@@ -79,7 +85,7 @@ const requestSchema = new mongoose.Schema(
     confirmedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      default: null, // User who confirmed the request
+      default: null, // Hospital user who confirmed the request
     },
 
     confirmationStatus: {

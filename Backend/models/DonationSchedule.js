@@ -13,6 +13,11 @@ const donationScheduleSchema = new mongoose.Schema({
   date: String,
   time: String,
   notes: String,
+  medicalEligibility: {
+    age: { type: Number, min: 0, default: null },
+    weightKg: { type: Number, min: 0, default: null },
+    hasRecentFeverOrInfection: { type: Boolean, default: null },
+  },
 
   status: {
     type: String,

@@ -83,7 +83,7 @@ export function RoleLayout({
     <>
       <div className="mt-6 rounded-[24px] bg-slate-950 p-5 text-white">
         <p className="text-xs uppercase tracking-[0.3em] text-rose-200">{getRoleLabel(role)} workspace</p>
-        <h1 className="mt-3 text-2xl font-black tracking-tight">{userName || "Pulse Bank user"}</h1>
+        <h1 className="mt-3 text-2xl font-black tracking-tight">{userName || "Pulselife user"}</h1>
         <p className="mt-2 text-sm text-slate-300">{description}</p>
       </div>
 

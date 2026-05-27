@@ -10,15 +10,21 @@ import { EmergencyMap, type MapPoint } from "@/components/emergency-map";
 import { RoleLayout } from "@/components/role-layout";
 import { apiJson, jsonBody } from "@/lib/api";
 import { haversineKm, roundDistanceKm } from "@/lib/distance";
-import { isActiveRequest } from "@/lib/request-state";
+import { getRequestMapSummary } from "@/lib/request-display";
+import { isOpenRequestForDonors } from "@/lib/request-state";
 import { saveStoredSession } from "@/lib/session";
 import type { BloodRequest, DonationSchedule } from "@/lib/types";
 import { useRoleSession } from "@/hooks/useRoleSession";
+
+type DonationRecord = {
+  _id: string;
+};
 
 export default function DonorDashboardPage() {
   const { user, ready, setUser } = useRoleSession("donor");
   const [requests, setRequests] = useState<BloodRequest[]>([]);
   const [schedules, setSchedules] = useState<DonationSchedule[]>([]);
+  const [completedDonations, setCompletedDonations] = useState(0);
   const [loading, setLoading] = useState(true);
   const [updatingAvailability, setUpdatingAvailability] = useState(false);
   const [error, setError] = useState("");
@@ -57,13 +63,15 @@ export default function DonorDashboardPage() {
     setError("");
 
     try {
-      const [requestData, scheduleData] = await Promise.all([
+      const [requestData, scheduleData, donationData] = await Promise.all([
         apiJson<{ requests: BloodRequest[] }>("/request/all"),
         apiJson<{ schedules: DonationSchedule[] }>(`/schedule/donor/${user.id || user._id}`),
+        apiJson<{ donations: DonationRecord[] }>(`/donor/history/${user.id || user._id}`),
       ]);
 
-      setRequests(withDistance((requestData.requests || []).filter(isActiveRequest)));
+      setRequests(withDistance((requestData.requests || []).filter(isOpenRequestForDonors)));
       setSchedules(scheduleData.schedules || []);
+      setCompletedDonations(donationData.donations?.length || 0);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load donor dashboard.");
     } finally {
@@ -165,7 +173,7 @@ export default function DonorDashboardPage() {
         latitude: request.location!.latitude!,
         longitude: request.location!.longitude!,
         title: request.hospitalName || request.hospital || "Hospital request",
-        subtitle: `${request.bloodType || "Blood"} • ${request.unitsNeeded} units • ${request.urgency}`,
+        subtitle: getRequestMapSummary(request),
         detail: request.location?.address || request.address || "Request location",
         tone: "rose" as const,
       })),
@@ -204,9 +212,10 @@ export default function DonorDashboardPage() {
     >
       {error && <Panel className="border-rose-200 bg-rose-50 text-sm font-medium text-rose-700">{error}</Panel>}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Open requests" value={requests.length} helper="Live requests currently visible to you." />
         <StatCard label="Upcoming schedules" value={activeSchedules.length} helper="Donation visits that still need attention." />
+        <StatCard label="Completed donations" value={completedDonations} helper="Hospital-confirmed donations finished successfully." />
         <StatCard
           label="Availability"
           value={user.available ? "Active" : "Paused"}
@@ -246,7 +255,7 @@ export default function DonorDashboardPage() {
         ) : requests.length === 0 ? (
           <EmptyState
             title="No requests are active right now"
-            description="When a hospital or recipient creates a new emergency request, it will appear here."
+            description="When a hospital creates a new emergency request, it will appear here."
           />
         ) : (
           <div className="grid gap-4">

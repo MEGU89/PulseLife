@@ -8,7 +8,12 @@ import { RequestCard } from "@/components/data-cards";
 import { EmergencyMap, type MapPoint } from "@/components/emergency-map";
 import { RoleLayout } from "@/components/role-layout";
 import { apiJson } from "@/lib/api";
-import { isActiveRequest } from "@/lib/request-state";
+import { getRequestMapSummary } from "@/lib/request-display";
+import {
+  getRequestPrimaryStatus,
+  isActiveRequest,
+  isPendingRequest,
+} from "@/lib/request-state";
 import type { BloodRequest } from "@/lib/types";
 import { useRoleSession } from "@/hooks/useRoleSession";
 
@@ -41,7 +46,9 @@ export default function RecipientDashboardPage() {
 
       const userId = user.id || user._id;
       const ownRequests = (requestResponse.requests || []).filter(
-        (request) => (request.requestedBy?._id === userId || request.recipientName === user.fullName) && isActiveRequest(request),
+        (request) =>
+          (request.requestedBy?._id === userId || request.recipientName === user.fullName) &&
+          isActiveRequest(request),
       );
 
       setRequests(ownRequests);
@@ -56,8 +63,11 @@ export default function RecipientDashboardPage() {
     return <LoadingView label="Loading recipient dashboard..." />;
   }
 
-  const pendingRequests = requests.filter((request) => request.status === "Pending").length;
-  const confirmedRequests = requests.filter((request) => request.confirmationStatus === "Confirmed").length;
+  const pendingRequests = requests.filter(isPendingRequest).length;
+  const confirmedRequests = requests.filter(
+    (request) => request.confirmationStatus === "Confirmed",
+  ).length;
+
   const mapPoints: MapPoint[] = [
     ...hospitals
       .filter((hospital) => hospital.location?.latitude && hospital.location?.longitude)
@@ -77,7 +87,7 @@ export default function RecipientDashboardPage() {
         latitude: request.location!.latitude!,
         longitude: request.location!.longitude!,
         title: request.hospitalName || request.hospital || "Recipient request",
-        subtitle: `${request.bloodType || "Blood"} • ${request.unitsNeeded} units • ${request.status}`,
+        subtitle: `${getRequestMapSummary(request)} - ${getRequestPrimaryStatus(request)}`,
         detail: request.location?.address || request.address || "Request-linked location",
         tone: "rose" as const,
       })),
@@ -88,13 +98,32 @@ export default function RecipientDashboardPage() {
       role="recipient"
       userName={user.fullName}
       title="Recipient dashboard"
-      description="Track the requests you have created, see where they stand, and move to the next step without extra noise."
-      actions={<Link href="/recipient/create-request" className="inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">Create request</Link>}
+      description="Track the blood and organ requests you have created, see where they stand, and move to the next step without extra noise."
+      actions={
+        <Link
+          href="/recipient/create-request"
+          className="inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+        >
+          Create request
+        </Link>
+      }
     >
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Active requests" value={requests.length} helper="Requests still active on your dashboard." />
-        <StatCard label="Pending now" value={pendingRequests} helper="Requests still waiting for fulfilment." />
-        <StatCard label="Confirmed" value={confirmedRequests} helper="Requests where a donor has already confirmed." />
+        <StatCard
+          label="Active requests"
+          value={requests.length}
+          helper="Requests still active on your dashboard."
+        />
+        <StatCard
+          label="Pending now"
+          value={pendingRequests}
+          helper="Requests still waiting for hospital action."
+        />
+        <StatCard
+          label="Confirmed"
+          value={confirmedRequests}
+          helper="Requests already confirmed by a hospital."
+        />
       </div>
 
       <PageSection
@@ -117,7 +146,11 @@ export default function RecipientDashboardPage() {
       <PageSection
         title="Your active requests"
         description="Only active requests stay on the dashboard. Completed requests move to history."
-        action={<Link href="/recipient/history" className="text-sm font-semibold text-rose-700">Open request history</Link>}
+        action={
+          <Link href="/recipient/history" className="text-sm font-semibold text-rose-700">
+            Open request history
+          </Link>
+        }
       >
         {loading ? (
           <Panel>Loading recipient requests...</Panel>
@@ -125,7 +158,14 @@ export default function RecipientDashboardPage() {
           <EmptyState
             title="No requests created yet"
             description="Create a request when you need hospital support and status tracking."
-            action={<Link href="/recipient/create-request" className="inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Create request</Link>}
+            action={
+              <Link
+                href="/recipient/create-request"
+                className="inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
+              >
+                Create request
+              </Link>
+            }
           />
         ) : (
           <div className="grid gap-4">

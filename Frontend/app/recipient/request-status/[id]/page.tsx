@@ -9,6 +9,10 @@ import { RequestCard } from "@/components/data-cards";
 import { RoleLayout } from "@/components/role-layout";
 import { apiJson } from "@/lib/api";
 import { titleCase } from "@/lib/format";
+import {
+  getRequestPrimaryStatus,
+  shouldShowRequestConfirmationBadge,
+} from "@/lib/request-state";
 import type { BloodRequest } from "@/lib/types";
 import { useRoleSession } from "@/hooks/useRoleSession";
 
@@ -43,7 +47,7 @@ export default function RequestStatusPage() {
     >
       <PageSection
         title="Status snapshot"
-        description="Follow this request from creation through donor confirmation and final fulfilment."
+        description="Follow this request from creation through hospital confirmation and final fulfilment."
       >
         {loading ? (
           <Panel>Loading request status...</Panel>
@@ -58,8 +62,24 @@ export default function RequestStatusPage() {
             <RequestCard request={request} />
             <Panel className="space-y-4">
               <div className="flex flex-wrap gap-2">
-                <StatusBadge value={titleCase(request.status)} tone={request.status === "Fulfilled" ? "success" : "warning"} />
-                {request.confirmationStatus && (
+                {(() => {
+                  const primaryStatus = getRequestPrimaryStatus(request);
+                  const primaryTone =
+                    primaryStatus.toLowerCase().includes("fulfilled") ||
+                    primaryStatus.toLowerCase().includes("confirmed")
+                      ? "success"
+                      : primaryStatus.toLowerCase().includes("reject")
+                        ? "danger"
+                        : "warning";
+
+                  return (
+                    <StatusBadge
+                      value={titleCase(primaryStatus)}
+                      tone={primaryTone}
+                    />
+                  );
+                })()}
+                {shouldShowRequestConfirmationBadge(request) && request.confirmationStatus && (
                   <StatusBadge
                     value={titleCase(request.confirmationStatus)}
                     tone={

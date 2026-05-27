@@ -8,8 +8,9 @@ import { EmptyState, LoadingView, PageSection, Panel, StatCard } from "@/compone
 import { RequestCard, ScheduleCard } from "@/components/data-cards";
 import { EmergencyMap, type MapPoint } from "@/components/emergency-map";
 import { RoleLayout } from "@/components/role-layout";
-import { apiJson } from "@/lib/api";
-import { isActiveRequest } from "@/lib/request-state";
+import { apiJson, jsonBody } from "@/lib/api";
+import { getRequestMapSummary } from "@/lib/request-display";
+import { isOpenRequestForMatching } from "@/lib/request-state";
 import type { BloodRequest, DonationSchedule } from "@/lib/types";
 import { useRoleSession } from "@/hooks/useRoleSession";
 
@@ -23,14 +24,31 @@ type ActiveDonor = {
   };
 };
 
+type HospitalDashboardStats = {
+  donorsNearby: number;
+  avgMatchTime: number;
+  totalSchedules: number;
+  pendingSchedules: number;
+  completedDonations: number;
+  fulfilledRequests: number;
+};
+
 export default function HospitalDashboardPage() {
   const { user, ready } = useRoleSession("hospital");
   const [requests, setRequests] = useState<BloodRequest[]>([]);
   const [schedules, setSchedules] = useState<DonationSchedule[]>([]);
   const [activeDonors, setActiveDonors] = useState<ActiveDonor[]>([]);
-  const [stats, setStats] = useState({ donorsNearby: 0, avgMatchTime: 0 });
+  const [stats, setStats] = useState<HospitalDashboardStats>({
+    donorsNearby: 0,
+    avgMatchTime: 0,
+    totalSchedules: 0,
+    pendingSchedules: 0,
+    completedDonations: 0,
+    fulfilledRequests: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   const loadDashboard = async () => {
     if (!user) return;
@@ -42,7 +60,7 @@ export default function HospitalDashboardPage() {
       const [requestData, scheduleData, statsData, donorData] = await Promise.all([
         apiJson<{ requests: BloodRequest[] }>("/request/all"),
         apiJson<{ schedules: DonationSchedule[] }>(`/hospital/schedules/${encodeURIComponent(user.fullName)}`),
-        apiJson<{ donorsNearby: number; avgMatchTime: number }>("/hospital/stats"),
+        apiJson<HospitalDashboardStats>(`/hospital/stats?hospitalName=${encodeURIComponent(user.fullName)}`),
         apiJson<{ donors: ActiveDonor[] }>("/hospital/active-donors"),
       ]);
 
@@ -51,7 +69,7 @@ export default function HospitalDashboardPage() {
         const userId = user.id || user._id;
         return (
           (requestOwner === userId || request.hospital === user.fullName || request.hospitalName === user.fullName) &&
-          isActiveRequest(request)
+          isOpenRequestForMatching(request)
         );
       });
 
@@ -61,6 +79,10 @@ export default function HospitalDashboardPage() {
       setStats({
         donorsNearby: statsData.donorsNearby || 0,
         avgMatchTime: statsData.avgMatchTime || 0,
+        totalSchedules: statsData.totalSchedules || 0,
+        pendingSchedules: statsData.pendingSchedules || 0,
+        completedDonations: statsData.completedDonations || 0,
+        fulfilledRequests: statsData.fulfilledRequests || 0,
       });
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load hospital dashboard.");
@@ -73,9 +95,36 @@ export default function HospitalDashboardPage() {
     void loadDashboard();
   }, [user]);
 
+  const updateRecipientRequest = async (requestId: string, action: "Confirmed" | "Rejected") => {
+    if (!user) return;
+
+    setError("");
+    setMessage("");
+
+    try {
+      await apiJson(`/request/${requestId}/confirm`, {
+        method: "POST",
+        body: jsonBody({
+          action,
+          hospitalId: user.id || user._id,
+        }),
+      });
+
+      setMessage(`Recipient request ${action.toLowerCase()} by hospital.`);
+      await loadDashboard();
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "Unable to update recipient request.");
+    }
+  };
+
   if (!ready || !user) {
     return <LoadingView label="Loading hospital dashboard..." />;
   }
+
+  const activeSchedules = schedules.filter((schedule) => {
+    const status = schedule.status?.toLowerCase() || "";
+    return status === "pending" || status === "accepted";
+  });
 
   const mapPoints: MapPoint[] = [
     ...(user.location?.latitude && user.location?.longitude
@@ -98,7 +147,7 @@ export default function HospitalDashboardPage() {
         latitude: request.location!.latitude!,
         longitude: request.location!.longitude!,
         title: request.hospitalName || request.hospital || "Hospital request",
-        subtitle: `${request.bloodType || "Blood"} • ${request.unitsNeeded} units • ${request.urgency}`,
+        subtitle: getRequestMapSummary(request),
         detail: request.location?.address || request.address || "Request location",
         tone: "rose" as const,
       })),
@@ -121,7 +170,7 @@ export default function HospitalDashboardPage() {
       role="hospital"
       userName={user.fullName}
       title="Hospital dashboard"
-      description="Create urgent requests, review donor schedules, and keep blood demand visible with a clearer hospital workspace."
+      description="Create urgent blood or organ requests, review donor schedules, and keep hospital demand visible with a clearer workspace."
       actions={
         <div className="flex flex-wrap gap-3">
           <Link href="/hospital/add-request" className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
@@ -140,10 +189,13 @@ export default function HospitalDashboardPage() {
       }
     >
       {error && <Panel className="border-rose-200 bg-rose-50 text-sm font-medium text-rose-700">{error}</Panel>}
+      {message && <Panel className="bg-slate-50 text-sm text-slate-600">{message}</Panel>}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Your open requests" value={requests.length} helper="Requests tied to your hospital workspace." />
-        <StatCard label="Nearby active donors" value={stats.donorsNearby} helper="Currently visible from the backend stats feed." />
+        <StatCard label="Pending donor requests" value={stats.pendingSchedules} helper="Schedules waiting for review or final completion." />
+        <StatCard label="Completed donations" value={stats.completedDonations} helper="Hospital-confirmed donations finished successfully." />
+        <StatCard label="Fulfilled requests" value={stats.fulfilledRequests} helper="Requests closed after successful donation completion." />
         <StatCard label="Average match time" value={`${stats.avgMatchTime} min`} helper="Calculated from request to schedule creation." />
       </div>
 
@@ -179,33 +231,52 @@ export default function HospitalDashboardPage() {
         ) : requests.length === 0 ? (
           <EmptyState
             title="No requests created yet"
-            description="Create your first blood request so donors can start responding."
+            description="Create your first blood or organ request so your hospital team can start tracking it."
             action={<Link href="/hospital/add-request" className="inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Create request</Link>}
           />
         ) : (
           <div className="grid gap-4">
             {requests.slice(0, 3).map((request) => (
-              <RequestCard key={request._id} request={request} />
+              <RequestCard key={request._id} request={request}>
+                {request.isRecipientRequest && request.confirmationStatus === "Pending" && (
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void updateRecipientRequest(request._id, "Confirmed")}
+                      className="rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-200"
+                    >
+                      Confirm for recipient
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void updateRecipientRequest(request._id, "Rejected")}
+                      className="rounded-full bg-rose-100 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-200"
+                    >
+                      Reject request
+                    </button>
+                  </div>
+                )}
+              </RequestCard>
             ))}
           </div>
         )}
       </PageSection>
 
       <PageSection
-        title="Schedule queue"
-        description="Review the donor schedules coming into your hospital."
+        title="Donor requests and schedules"
+        description="Every donor schedule sent to your hospital appears here for review, approval, and final completion."
         action={<Link href="/hospital/schedules" className="text-sm font-semibold text-rose-700">Manage schedules</Link>}
       >
         {loading ? (
           <Panel>Loading schedules...</Panel>
-        ) : schedules.length === 0 ? (
+        ) : activeSchedules.length === 0 ? (
           <EmptyState
-            title="No donor schedules yet"
-            description="Once a donor schedules a donation for one of your requests, it will appear here."
+            title="No active donor schedules"
+            description="Pending or accepted donor schedules will appear here until the scheduled time is completed."
           />
         ) : (
           <div className="grid gap-4">
-            {schedules.slice(0, 2).map((schedule) => (
+            {activeSchedules.slice(0, 3).map((schedule) => (
               <ScheduleCard key={schedule._id} schedule={schedule} />
             ))}
           </div>
@@ -220,7 +291,7 @@ export default function HospitalDashboardPage() {
           <Panel className="space-y-3">
             <FilePlus2 className="h-6 w-6 text-rose-600" />
             <h3 className="text-xl font-black tracking-tight text-slate-950">Create request</h3>
-            <p className="text-sm leading-7 text-slate-600">Add a clean emergency request with the right blood type, urgency, and units needed.</p>
+            <p className="text-sm leading-7 text-slate-600">Add a clean emergency blood or organ request with the right urgency and quantity details.</p>
             <Link href="/hospital/add-request" className="text-sm font-semibold text-rose-700">Open form</Link>
           </Panel>
           <Panel className="space-y-3">

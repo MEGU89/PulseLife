@@ -7,7 +7,7 @@ import { RequestCard } from "@/components/data-cards";
 import { RoleLayout } from "@/components/role-layout";
 import { apiJson } from "@/lib/api";
 import { haversineKm, roundDistanceKm } from "@/lib/distance";
-import { isActiveRequest } from "@/lib/request-state";
+import { isOpenRequestForDonors } from "@/lib/request-state";
 import type { BloodRequest } from "@/lib/types";
 import { useRoleSession } from "@/hooks/useRoleSession";
 
@@ -21,7 +21,7 @@ export default function DonorRequestsPage() {
     const load = async () => {
       try {
         const response = await apiJson<{ requests: BloodRequest[] }>("/request/all");
-        const requestList = (response.requests || []).filter(isActiveRequest).map((request) => {
+        const requestList = (response.requests || []).filter(isOpenRequestForDonors).map((request) => {
           if (
             !user?.location?.latitude ||
             !user.location.longitude ||

@@ -36,7 +36,7 @@ const steps = [
   "Hospitals or recipients create a blood request with urgency, units needed, and location details.",
   "Donors review requests, choose one that fits, and schedule a donation with contact information.",
   "Hospitals accept or reject schedules, then mark donations complete after handoff.",
-  "Pulse Bank keeps a clearer record of requests, schedules, donor perks, and profile details.",
+  "Pulselife keeps a clearer record of requests, schedules, donor perks, and profile details.",
 ];
 
 export default function HomePage() {
@@ -61,7 +61,7 @@ export default function HomePage() {
             </div>
             <div className="space-y-5">
               <h1 className="max-w-4xl text-4xl font-black leading-tight tracking-tight text-slate-950 md:text-7xl">
-                Pulse Bank is a calmer way to connect donors, hospitals, and recipients fast.
+                Pulselife is a calmer way to connect donors, hospitals, and recipients fast.
               </h1>
               <p className="max-w-3xl text-base leading-8 text-slate-600 md:text-lg">
                 This project is built to reduce confusion during urgent blood needs. It gives hospitals a request desk,
@@ -97,7 +97,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="space-y-4 text-sm leading-7 text-slate-600">
-              <p>Pulse Bank currently supports three major roles: donor, hospital, and recipient.</p>
+              <p>Pulselife currently supports three major roles: donor, hospital, and recipient.</p>
               <p>Hospitals can add emergency blood requests, review donor schedules, and track request history.</p>
               <p>Donors can review active requests, set availability, book donation slots, and see perks or stats after completed donations.</p>
               <p>Recipients can create requests, check current status, and keep their personal details and settings updated.</p>
@@ -137,7 +137,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl">
           <PageSection
             title="How the project works"
-            description="This is the full operating loop Pulse Bank is designed around."
+            description="This is the full operating loop Pulselife is designed around."
           >
             <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
               <Panel className="space-y-5">
@@ -177,7 +177,7 @@ export default function HomePage() {
 
       <footer className="border-t border-white/70 px-4 py-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
-          <p>Pulse Bank focuses on emergency blood coordination with cleaner donor, hospital, and recipient journeys.</p>
+          <p>Pulselife focuses on emergency blood coordination with cleaner donor, hospital, and recipient journeys.</p>
           <div className="flex gap-5">
             <Link href="/about" className="font-semibold transition hover:text-rose-700">
               About

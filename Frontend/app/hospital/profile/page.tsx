@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { FieldShell, LoadingView, PageSection, Panel, inputClassName } from "@/components/app-ui";
+import { LocationDetector } from "@/components/location-detector";
 import { RoleLayout } from "@/components/role-layout";
 import { apiJson, jsonBody } from "@/lib/api";
 import { saveStoredSession } from "@/lib/session";
@@ -17,6 +18,8 @@ export default function HospitalProfilePage() {
     phone: "",
     hospitalId: "",
     address: "",
+    latitude: "",
+    longitude: "",
   });
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -30,6 +33,8 @@ export default function HospitalProfilePage() {
       phone: user.phone || "",
       hospitalId: user.hospitalId || "",
       address: user.address || "",
+      latitude: user.location?.latitude ? String(user.location.latitude) : "",
+      longitude: user.location?.longitude ? String(user.location.longitude) : "",
     });
   }, [user]);
 
@@ -46,6 +51,13 @@ export default function HospitalProfilePage() {
         body: jsonBody({
           userId: user.id || user._id,
           ...form,
+          location:
+            form.latitude && form.longitude
+              ? {
+                  latitude: Number(form.latitude),
+                  longitude: Number(form.longitude),
+                }
+              : undefined,
         }),
       });
 
@@ -58,47 +70,6 @@ export default function HospitalProfilePage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const refreshLocation = () => {
-    if (!user) return;
-
-    setMessage("");
-
-    if (!navigator.geolocation) {
-      setMessage("This browser cannot share location.");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const response = await apiJson<{ hospital: { location?: { latitude?: number; longitude?: number } } }>("/hospital/update-location", {
-            method: "POST",
-            body: jsonBody({
-              hospitalId: user.id || user._id,
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              address: form.address,
-            }),
-          });
-
-          const updatedUser = {
-            ...user,
-            location: response.hospital.location || user.location,
-            address: form.address,
-          };
-
-          setUser(updatedUser);
-          saveStoredSession(updatedUser);
-          setMessage("Hospital location updated.");
-        } catch (error) {
-          setMessage(error instanceof Error ? error.message : "Unable to update location.");
-        }
-      },
-      () => setMessage("Location access was blocked."),
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
-    );
   };
 
   if (!ready || !user) {
@@ -133,26 +104,34 @@ export default function HospitalProfilePage() {
               </FieldShell>
             </div>
 
-            <FieldShell label="Address">
-              <textarea className={`${inputClassName()} min-h-28 resize-y`} value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} placeholder="Hospital address" />
-            </FieldShell>
-
-            {user.location?.latitude && user.location?.longitude && (
-              <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Current coordinates: {user.location.latitude.toFixed(5)}, {user.location.longitude.toFixed(5)}
-              </div>
-            )}
+            <LocationDetector
+              label="Hospital address and location"
+              description="You can auto-detect the hospital location or type the address and convert it into latitude and longitude."
+              initialAddress={form.address}
+              initialLocation={
+                form.latitude && form.longitude
+                  ? {
+                      latitude: Number(form.latitude),
+                      longitude: Number(form.longitude),
+                    }
+                  : null
+              }
+              onLocationDetected={(latitude, longitude, address) =>
+                setForm((current) => ({
+                  ...current,
+                  latitude: String(latitude),
+                  longitude: String(longitude),
+                  address: address || current.address,
+                }))
+              }
+              onAddressChange={(address) => setForm((current) => ({ ...current, address }))}
+            />
 
             {message && <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}
 
-            <div className="flex flex-wrap gap-3">
-              <button type="submit" disabled={saving} className="inline-flex rounded-full bg-slate-950 px-6 py-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
-                {saving ? "Saving..." : "Save hospital profile"}
-              </button>
-              <button type="button" onClick={refreshLocation} className="inline-flex rounded-full border border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700 transition hover:border-rose-200 hover:text-rose-700">
-                Refresh hospital location
-              </button>
-            </div>
+            <button type="submit" disabled={saving} className="inline-flex rounded-full bg-slate-950 px-6 py-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
+              {saving ? "Saving..." : "Save hospital profile"}
+            </button>
           </form>
         </Panel>
       </PageSection>

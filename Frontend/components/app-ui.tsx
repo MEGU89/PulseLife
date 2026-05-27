@@ -111,7 +111,7 @@ export function LoadingView({ label = "Loading your workspace..." }: { label?: s
     <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,#ffe4e6,transparent_45%),linear-gradient(180deg,#fff7ed_0%,#f8fafc_55%,#f1f5f9_100%)] px-4">
       <Panel className="max-w-md text-center">
         <div className="mx-auto mb-4 h-12 w-12 animate-pulse rounded-2xl bg-rose-100" />
-        <h1 className="text-2xl font-black tracking-tight text-slate-900">Pulse Bank</h1>
+        <h1 className="text-2xl font-black tracking-tight text-slate-900">Pulselife</h1>
         <p className="mt-2 text-sm text-slate-600">{label}</p>
       </Panel>
     </main>

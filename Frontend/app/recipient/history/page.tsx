@@ -6,6 +6,7 @@ import { EmptyState, LoadingView, PageSection, Panel, StatCard } from "@/compone
 import { RequestCard } from "@/components/data-cards";
 import { RoleLayout } from "@/components/role-layout";
 import { apiJson } from "@/lib/api";
+import { isPendingRequest } from "@/lib/request-state";
 import type { BloodRequest } from "@/lib/types";
 import { useRoleSession } from "@/hooks/useRoleSession";
 
@@ -40,7 +41,7 @@ export default function RecipientHistoryPage() {
     >
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard label="Requests created" value={requests.length} helper="All requests associated with your account." />
-        <StatCard label="Pending requests" value={requests.filter((request) => request.status === "Pending").length} helper="Requests still waiting for completion." />
+        <StatCard label="Pending requests" value={requests.filter(isPendingRequest).length} helper="Requests still waiting for hospital action." />
         <StatCard label="Fulfilled requests" value={requests.filter((request) => request.status === "Fulfilled").length} helper="Requests that reached a completed outcome." />
       </div>
 

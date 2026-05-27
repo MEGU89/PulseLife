@@ -30,6 +30,7 @@ type FormState = {
   password: string;
   phone: string;
   bloodType: string;
+  gender: string;
   hospitalId: string;
   latitude: string;
   longitude: string;
@@ -63,6 +64,10 @@ const roleCards: Array<{
 ];
 
 const bloodTypes = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
+const donorGenderOptions = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+] as const;
 
 const defaultForm: FormState = {
   fullName: "",
@@ -72,6 +77,7 @@ const defaultForm: FormState = {
   password: "",
   phone: "",
   bloodType: "O+",
+  gender: "male",
   hospitalId: "",
   latitude: "",
   longitude: "",
@@ -92,8 +98,11 @@ function AuthPageContent() {
   const [form, setForm] = useState<FormState>(defaultForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const isHospital = role === "hospital";
+  const isRecipient = role === "recipient";
+  const hasCoordinates = form.latitude !== "" && form.longitude !== "";
 
-  const title = mode === "login" ? "Welcome back to Pulse Bank" : "Join Pulse Bank";
+  const title = mode === "login" ? "Welcome back to Pulselife" : "Join Pulselife";
   const subtitle =
     mode === "login"
       ? "Pick your role and return to your dashboard."
@@ -111,9 +120,6 @@ function AuthPageContent() {
     setLoading(true);
     setError("");
 
-    const isHospital = role === "hospital";
-    const isRecipient = role === "recipient";
-
     const fullName =
       role === "hospital" ? form.hospitalName : isRecipient ? form.recipientName : form.fullName;
 
@@ -127,6 +133,18 @@ function AuthPageContent() {
 
     if (role === "donor") {
       payload.bloodType = form.bloodType;
+      payload.gender = form.gender;
+    }
+
+    if (form.address.trim()) {
+      payload.address = form.address.trim();
+    }
+
+    if (hasCoordinates) {
+      payload.location = {
+        latitude: Number(form.latitude),
+        longitude: Number(form.longitude),
+      };
     }
 
     if (isHospital) {
@@ -134,17 +152,11 @@ function AuthPageContent() {
     }
 
     if (mode === "register" && isHospital) {
-      if (!form.latitude || !form.longitude) {
+      if (!hasCoordinates) {
         setError("Hospital registration needs a current location before you continue.");
         setLoading(false);
         return;
       }
-
-      payload.location = {
-        latitude: Number(form.latitude),
-        longitude: Number(form.longitude),
-      };
-      payload.address = form.address;
     }
 
     if (mode === "login" && isHospital) {
@@ -189,7 +201,7 @@ function AuthPageContent() {
               Designed to feel clear during urgent moments
             </div>
             <h1 className="text-5xl font-black tracking-tight text-white md:text-6xl">
-              A better sign-in experience for every Pulse Bank role.
+              A better sign-in experience for every Pulselife role.
             </h1>
             <p className="text-base leading-8 text-slate-300">
               This login and registration space is intentionally simpler. Donors focus on response and scheduling,
@@ -269,7 +281,7 @@ function AuthPageContent() {
                     name="phone"
                     value={form.phone}
                     onChange={handleChange}
-                    placeholder="+91 98765 43210"
+                    placeholder="+91-9xxxxxxx3"
                     required={mode === "register"}
                   />
                 </FieldShell>
@@ -289,26 +301,56 @@ function AuthPageContent() {
               )}
 
               {role === "donor" && mode === "register" && (
-                <FieldShell label="Blood type">
-                  <select
-                    className={inputClassName()}
-                    name="bloodType"
-                    value={form.bloodType}
-                    onChange={handleChange}
-                  >
-                    {bloodTypes.map((bloodType) => (
-                      <option key={bloodType} value={bloodType}>
-                        {bloodType}
-                      </option>
-                    ))}
-                  </select>
-                </FieldShell>
+                <div className="grid gap-5 md:grid-cols-2">
+                  <FieldShell label="Blood type">
+                    <select
+                      className={inputClassName()}
+                      name="bloodType"
+                      value={form.bloodType}
+                      onChange={handleChange}
+                    >
+                      {bloodTypes.map((bloodType) => (
+                        <option key={bloodType} value={bloodType}>
+                          {bloodType}
+                        </option>
+                      ))}
+                    </select>
+                  </FieldShell>
+                  <FieldShell label="Gender">
+                    <select
+                      className={inputClassName()}
+                      name="gender"
+                      value={form.gender}
+                      onChange={handleChange}
+                    >
+                      {donorGenderOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </FieldShell>
+                </div>
               )}
 
-              {role === "hospital" && mode === "register" && (
+              {mode === "register" && (
                 <LocationDetector
-                  label="Hospital location"
-                  description="Capture your current location so donors can find your hospital faster."
+                  label={role === "hospital" ? "Hospital address and location" : "Address and location"}
+                  description={
+                    role === "hospital"
+                      ? "Required for hospitals. You can auto-detect your location or type the address and convert it to latitude and longitude."
+                      : "Optional. You can auto-detect your location or type the address and convert it to latitude and longitude."
+                  }
+                  required={role === "hospital"}
+                  initialAddress={form.address}
+                  initialLocation={
+                    hasCoordinates
+                      ? {
+                          latitude: Number(form.latitude),
+                          longitude: Number(form.longitude),
+                        }
+                      : null
+                  }
                   onLocationDetected={(latitude, longitude, address) => {
                     setForm((current) => ({
                       ...current,
@@ -317,19 +359,13 @@ function AuthPageContent() {
                       address: address || current.address,
                     }));
                   }}
+                  onAddressChange={(address) => {
+                    setForm((current) => ({
+                      ...current,
+                      address,
+                    }));
+                  }}
                 />
-              )}
-
-              {role === "hospital" && mode === "register" && (
-                <FieldShell label="Address" hint="You can refine the detected address if needed.">
-                  <textarea
-                    className={`${inputClassName()} min-h-28 resize-y`}
-                    name="address"
-                    value={form.address}
-                    onChange={handleChange}
-                    placeholder="Hospital address"
-                  />
-                </FieldShell>
               )}
 
               <FieldShell label="Password">

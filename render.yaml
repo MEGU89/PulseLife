@@ -1,5 +1,5 @@
 services:
-  - name: pulsebank-api
+  - name: pulselife-api
     type: web
     runtime: node
     plan: free
@@ -34,7 +34,7 @@ services:
       - key: TWILIO_PHONE_NUMBER
         sync: false
 
-  - name: pulsebank-web
+  - name: pulselife-web
     type: web
     runtime: node
     plan: free

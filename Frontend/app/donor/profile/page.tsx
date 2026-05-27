@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { FieldShell, LoadingView, PageSection, Panel, inputClassName } from "@/components/app-ui";
+import { LocationDetector } from "@/components/location-detector";
 import { RoleLayout } from "@/components/role-layout";
 import { apiJson, jsonBody } from "@/lib/api";
 import { saveStoredSession } from "@/lib/session";
@@ -10,6 +11,10 @@ import type { AppUser } from "@/lib/types";
 import { useRoleSession } from "@/hooks/useRoleSession";
 
 const bloodTypes = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
+const genderOptions = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+];
 
 export default function DonorProfilePage() {
   const { user, ready, setUser } = useRoleSession("donor");
@@ -18,7 +23,10 @@ export default function DonorProfilePage() {
     email: "",
     phone: "",
     bloodType: "O+",
+    gender: "male",
     address: "",
+    latitude: "",
+    longitude: "",
   });
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -31,7 +39,10 @@ export default function DonorProfilePage() {
       email: user.email || "",
       phone: user.phone || "",
       bloodType: user.bloodType || "O+",
+      gender: user.gender === "female" ? "female" : "male",
       address: user.address || "",
+      latitude: user.location?.latitude ? String(user.location.latitude) : "",
+      longitude: user.location?.longitude ? String(user.location.longitude) : "",
     });
   }, [user]);
 
@@ -48,6 +59,13 @@ export default function DonorProfilePage() {
         body: jsonBody({
           userId: user.id || user._id,
           ...form,
+          location:
+            form.latitude && form.longitude
+              ? {
+                  latitude: Number(form.latitude),
+                  longitude: Number(form.longitude),
+                }
+              : undefined,
         }),
       });
 
@@ -100,11 +118,39 @@ export default function DonorProfilePage() {
                   ))}
                 </select>
               </FieldShell>
+              <FieldShell label="Gender">
+                <select className={inputClassName()} value={form.gender} onChange={(event) => setForm((current) => ({ ...current, gender: event.target.value }))}>
+                  {genderOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FieldShell>
             </div>
 
-            <FieldShell label="Address">
-              <textarea className={`${inputClassName()} min-h-28 resize-y`} value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} placeholder="Optional address details" />
-            </FieldShell>
+            <LocationDetector
+              label="Address to coordinates"
+              description="Optional. Auto-detect your location or type your address and convert it into latitude and longitude."
+              initialAddress={form.address}
+              initialLocation={
+                form.latitude && form.longitude
+                  ? {
+                      latitude: Number(form.latitude),
+                      longitude: Number(form.longitude),
+                    }
+                  : null
+              }
+              onLocationDetected={(latitude, longitude, address) =>
+                setForm((current) => ({
+                  ...current,
+                  latitude: String(latitude),
+                  longitude: String(longitude),
+                  address: address || current.address,
+                }))
+              }
+              onAddressChange={(address) => setForm((current) => ({ ...current, address }))}
+            />
 
             {message && <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}
 

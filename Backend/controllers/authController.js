@@ -1,6 +1,7 @@
 import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { synchronizePerkStatuses } from "../utils/donorBenefits.js";
 
 
 // =============================
@@ -8,7 +9,7 @@ import jwt from "jsonwebtoken";
 // =============================
 export const registerUser = async (req, res) => {
   try {
-    const { fullName, email, password, phone, bloodType, role, hospitalId, location, address } = req.body;
+    const { fullName, email, password, phone, bloodType, gender, role, hospitalId, location, address } = req.body;
 
     // Basic validation for all users
     if (!fullName || !email || !password || !phone) {
@@ -37,6 +38,13 @@ export const registerUser = async (req, res) => {
       });
     }
 
+    if (role === "donor" && !gender) {
+      return res.status(400).json({
+        success: false,
+        message: "Gender is required for donors",
+      });
+    }
+
     // Check if user exists
     const existing = await User.findOne({ email });
     if (existing) {
@@ -56,10 +64,17 @@ export const registerUser = async (req, res) => {
       password: hashedPassword,
       phone,
       bloodType: role === "donor" ? bloodType : null,
+      gender: role === "donor" ? gender : null,
       role: role || "user",
       hospitalId: role === "hospital" ? (hospitalId || null) : null,
-      location: role === "hospital" ? location : undefined,
-      address: role === "hospital" ? address : undefined,
+      location:
+        location && typeof location.latitude === "number" && typeof location.longitude === "number"
+          ? {
+              latitude: location.latitude,
+              longitude: location.longitude,
+            }
+          : undefined,
+      address: address || undefined,
     });
 
     // 🔥 Generate JWT after successful registration
@@ -81,6 +96,7 @@ export const registerUser = async (req, res) => {
         email: user.email,
         phone: user.phone,
         bloodType: user.bloodType,
+        gender: user.gender || null,
         role: user.role,
         hospitalId: user.hospitalId || null,
         location: user.location || null,
@@ -88,7 +104,9 @@ export const registerUser = async (req, res) => {
         profileImage: user.profileImage || null,
         perks: user.perks || [],
         totalDonations: user.totalDonations || 0,
+        donationsThisYear: user.donationsThisYear || 0,
         lastHealthCheckupDate: user.lastHealthCheckupDate || null,
+        nextEligibleDonationDate: user.nextEligibleDonationDate || null,
       },
     });
 
@@ -161,6 +179,7 @@ export const loginUser = async (req, res) => {
         email: user.email,
         phone: user.phone,
         bloodType: user.bloodType,
+        gender: user.gender || null,
         role: user.role,
         hospitalId: user.hospitalId || null,
         location: user.location || null,
@@ -168,7 +187,9 @@ export const loginUser = async (req, res) => {
         profileImage: user.profileImage || null,
         perks: user.perks || [],
         totalDonations: user.totalDonations || 0,
+        donationsThisYear: user.donationsThisYear || 0,
         lastHealthCheckupDate: user.lastHealthCheckupDate || null,
+        nextEligibleDonationDate: user.nextEligibleDonationDate || null,
       },
     });
 
@@ -196,6 +217,10 @@ export const getUser = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
+    if (synchronizePerkStatuses(user)) {
+      await user.save();
+    }
+
     res.json({ success: true, user });
 
   } catch (err) {
@@ -205,11 +230,11 @@ export const getUser = async (req, res) => {
 
 // =============================
 // UPDATE PROFILE (basic)
-// Accepts body: { userId, fullName, email, phone, bloodType, profileImage, address }
+// Accepts body: { userId, fullName, email, phone, bloodType, gender, profileImage, address }
 // If `userId` is not provided, returns 400. This is a simple endpoint used by frontend profile pages.
 export const updateProfile = async (req, res) => {
   try {
-    const { userId, fullName, email, phone, bloodType, profileImage, address } = req.body;
+    const { userId, fullName, email, phone, bloodType, gender, hospitalId, profileImage, address, location } = req.body;
     if (!userId) return res.status(400).json({ success: false, message: "userId required" });
 
     const user = await User.findById(userId);
@@ -219,8 +244,20 @@ export const updateProfile = async (req, res) => {
     if (email) user.email = email;
     if (phone) user.phone = phone;
     if (typeof bloodType !== 'undefined') user.bloodType = bloodType || null;
+    if (typeof gender !== 'undefined') user.gender = gender || null;
+    if (typeof hospitalId !== "undefined") user.hospitalId = hospitalId || null;
     if (typeof profileImage !== 'undefined') user.profileImage = profileImage;
     if (typeof address !== 'undefined') user.address = address;
+    if (
+      location &&
+      typeof location.latitude === "number" &&
+      typeof location.longitude === "number"
+    ) {
+      user.location = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      };
+    }
 
     await user.save();
 
@@ -230,7 +267,9 @@ export const updateProfile = async (req, res) => {
     // Ensure perks array is included
     if (!safe.perks) safe.perks = [];
     if (!safe.totalDonations) safe.totalDonations = 0;
+    if (!safe.donationsThisYear) safe.donationsThisYear = 0;
     if (!safe.lastHealthCheckupDate) safe.lastHealthCheckupDate = null;
+    if (!safe.nextEligibleDonationDate) safe.nextEligibleDonationDate = null;
 
     res.json({ success: true, message: "Profile updated", user: safe });
   } catch (err) {

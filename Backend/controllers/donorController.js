@@ -9,8 +9,8 @@ import DonationSchedule from "../models/DonationSchedule.js";
 ----------------------------------------------------- */
 export const addDonation = async (req, res) => {
   try {
-    const { donorId, units, location } = req.body;
-    if (!donorId || !units || !location) {
+    const { donorId, scheduleId, hospital, units, date, status } = req.body;
+    if (!donorId || !hospital || !units) {
       return res.status(400).json({ success: false, message: "All fields required" });
     }
 
@@ -19,9 +19,11 @@ export const addDonation = async (req, res) => {
 
     const donation = await Donation.create({
       donorId,
+      scheduleId: scheduleId || null,
+      hospital,
       units,
-      location,
-      date: new Date(),
+      date: date || new Date(),
+      status: status || "Completed",
     });
 
     res.json({ success: true, message: "Donation recorded", donation });
@@ -50,17 +52,19 @@ export const getDonationHistory = async (req, res) => {
 };
 
 
-/* -----------------------------------------------------
+/*-----------------------------------------------------
     3️⃣ GET ALL URGENT REQUESTS FOR DASHBOARD
 ----------------------------------------------------- */
 export const getUrgentRequests = async (req, res) => {
   try {
-    const requests = await Request.find().sort({ createdAt: -1 });
+    const requests = await Request.find({ requestType: "blood" }).sort({ createdAt: -1 });
 
     const formatted = requests.map((r) => ({
       _id: r._id,
+      requestType: r.requestType,
       hospital: r.hospital,
       bloodType: r.bloodType,
+      organType: r.organType,
       unitsNeeded: r.unitsNeeded,
       urgency: r.urgency,
       searchRadiusKm: r.searchRadiusKm ?? r.locationKm ?? null,
@@ -102,9 +106,27 @@ export const setAvailability = async (req, res) => {
         latitude,
         longitude,
       });
+
+      io.emit("donor_status_changed", {
+        donorId: donor._id,
+        available: donor.available,
+        location: donor.location || null,
+        bloodType: donor.bloodType,
+        fullName: donor.fullName,
+      });
     }
 
-    res.json({ success: true, message: "Availability updated", available });
+    res.json({
+      success: true,
+      message: "Availability updated",
+      donor: {
+        _id: donor._id,
+        available: donor.available,
+        location: donor.location || null,
+        bloodType: donor.bloodType,
+        fullName: donor.fullName,
+      },
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

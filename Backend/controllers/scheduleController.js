@@ -1,21 +1,45 @@
-import DonationSchedule from "../models/DonationSchedule.js";
-import Request from "../models/Request.js";
-import User from "../models/User.js";
 import Donation from "../models/Donation.js";
+import Request from "../models/Request.js";
+import DonationSchedule from "../models/DonationSchedule.js";
+import User from "../models/User.js";
+import {
+  DONATION_COOLDOWN_DAYS,
+  getAnnualDonationSummary,
+} from "../utils/donorBenefits.js";
 import { sendEmail } from "../utils/email.js";
+import { completeDonationSchedule } from "../utils/completeDonation.js";
+import { findRequestHospitalUser } from "../utils/requestHospital.js";
 import { formatDateInputValue, parseScheduleDate } from "../utils/scheduleDate.js";
-
-const DONOR_COOLDOWN_DAYS = 56;
 
 /* ---------------------------------------------
    1️⃣ DONOR CREATES DONATION SCHEDULE
 ----------------------------------------------*/
 export const scheduleDonation = async (req, res) => {
   try {
-    const { donorId, requestId, donorLocation, contact, date, time, notes } = req.body;
+    const { donorId, requestId, donorLocation, contact, date, time, notes, medicalEligibility } = req.body;
 
-    if (!donorId || !requestId || !donorLocation || !contact || !date || !time) {
+    if (!donorId || !requestId || !donorLocation || !contact || !date || !time || !medicalEligibility) {
       return res.status(400).json({ success: false, message: "All fields required" });
+    }
+
+    const age = Number(medicalEligibility.age);
+    const weightKg = Number(medicalEligibility.weightKg);
+    const hasRecentFeverOrInfection = medicalEligibility.hasRecentFeverOrInfection === true;
+
+    if (Number.isNaN(age) || Number.isNaN(weightKg)) {
+      return res.status(400).json({ success: false, message: "Medical eligibility details are required." });
+    }
+
+    if (age < 18 || age > 65) {
+      return res.status(400).json({ success: false, message: "Donor age must be between 18 and 65 years." });
+    }
+
+    if (weightKg < 50) {
+      return res.status(400).json({ success: false, message: "Donor weight must be at least 50 kg." });
+    }
+
+    if (hasRecentFeverOrInfection) {
+      return res.status(400).json({ success: false, message: "Donors with a recent fever or infection cannot schedule a donation yet." });
     }
 
     const donor = await User.findById(donorId);
@@ -24,8 +48,22 @@ export const scheduleDonation = async (req, res) => {
     const request = await Request.findById(requestId);
     if (!request) return res.status(404).json({ success: false, message: "Request not found" });
 
-    if (request.status !== "Pending") {
-      return res.status(409).json({ success: false, message: "This request is no longer active." });
+    if (request.requestType !== "blood") {
+      return res.status(409).json({
+        success: false,
+        message: "Only blood requests can be matched with donor donation schedules.",
+      });
+    }
+
+    if (request.isRecipientRequest) {
+      return res.status(409).json({
+        success: false,
+        message: "Recipient requests are handled only by the selected hospital and cannot be scheduled by donors.",
+      });
+    }
+
+    if (request.status !== "Pending" || request.confirmationStatus === "Confirmed" || request.confirmedBy) {
+      return res.status(409).json({ success: false, message: "This request has already been matched with a donor." });
     }
 
     const requestedScheduleDate = parseScheduleDate(date, time);
@@ -33,29 +71,23 @@ export const scheduleDonation = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid schedule date or time" });
     }
 
-    const priorSchedules = await DonationSchedule.find({
-      donorId,
-      status: { $in: ["accepted", "completed"] },
-    })
-      .select("date time status")
+    const priorDonations = await Donation.find({ donorId })
+      .select("date")
       .lean();
 
-    let latestConfirmedSchedule = null;
-    let latestConfirmedDate = null;
+    const latestConfirmedDonation = priorDonations
+      .map((donation) => ({
+        ...donation,
+        parsedDate: donation.date ? new Date(donation.date) : null,
+      }))
+      .filter((donation) => donation.parsedDate && !Number.isNaN(donation.parsedDate.getTime()))
+      .sort((left, right) => right.parsedDate - left.parsedDate)[0] || null;
 
-    for (const priorSchedule of priorSchedules) {
-      const parsedDate = parseScheduleDate(priorSchedule.date, priorSchedule.time || "00:00");
-      if (!parsedDate) continue;
-
-      if (!latestConfirmedDate || parsedDate > latestConfirmedDate) {
-        latestConfirmedDate = parsedDate;
-        latestConfirmedSchedule = priorSchedule;
-      }
-    }
+    const latestConfirmedDate = latestConfirmedDonation?.parsedDate || null;
 
     if (latestConfirmedDate) {
       const nextEligibleDate = new Date(latestConfirmedDate);
-      nextEligibleDate.setUTCDate(nextEligibleDate.getUTCDate() + DONOR_COOLDOWN_DAYS);
+      nextEligibleDate.setUTCDate(nextEligibleDate.getUTCDate() + DONATION_COOLDOWN_DAYS);
 
       if (requestedScheduleDate < nextEligibleDate) {
         const nextEligibleDateValue = formatDateInputValue(nextEligibleDate);
@@ -63,11 +95,23 @@ export const scheduleDonation = async (req, res) => {
         return res.status(409).json({
           success: false,
           message: `You can schedule your next donation after ${nextEligibleDateValue}.`,
-          cooldownDays: DONOR_COOLDOWN_DAYS,
+          cooldownDays: DONATION_COOLDOWN_DAYS,
           nextEligibleDate: nextEligibleDateValue,
-          lastSchedule: latestConfirmedSchedule,
+          lastDonation: latestConfirmedDonation,
         });
       }
+    }
+
+    const annualSummary = getAnnualDonationSummary(priorDonations, donor.gender, requestedScheduleDate);
+    if (annualSummary.annualDonationCount >= annualSummary.annualDonationLimit) {
+      return res.status(409).json({
+        success: false,
+        message: `You have reached the yearly donation limit of ${annualSummary.annualDonationLimit}.`,
+        annualDonationCount: annualSummary.annualDonationCount,
+        annualDonationLimit: annualSummary.annualDonationLimit,
+        annualDonationRemaining: annualSummary.annualDonationRemaining,
+        nextAnnualEligibleDate: formatDateInputValue(annualSummary.nextAnnualEligibleDate),
+      });
     }
 
     const schedule = await DonationSchedule.create({
@@ -78,6 +122,11 @@ export const scheduleDonation = async (req, res) => {
       date,
       time,
       notes,
+      medicalEligibility: {
+        age,
+        weightKg,
+        hasRecentFeverOrInfection,
+      },
       status: "pending",
       hospitalResponse: "none"
     });
@@ -187,6 +236,10 @@ export const updateScheduleStatus = async (req, res) => {
   try {
     const { scheduleId, action } = req.body; 
 
+    if (!["accepted", "rejected"].includes(action)) {
+      return res.status(400).json({ success: false, message: "Action must be accepted or rejected" });
+    }
+
     const schedule = await DonationSchedule.findById(scheduleId);
     if (!schedule) return res.status(404).json({ success: false, message: "Schedule not found" });
 
@@ -197,11 +250,11 @@ export const updateScheduleStatus = async (req, res) => {
     // Fetch donor and request for location info
     const donor = await User.findById(schedule.donorId);
     const request = await Request.findById(schedule.requestId);
-    const hospital = await User.findOne({ fullName: request.hospital });
+    const hospital = await findRequestHospitalUser(request);
 
-    if (action === "accepted" && request) {
+    if (action === "accepted" && request && hospital) {
       request.confirmationStatus = "Confirmed";
-      request.confirmedBy = schedule.donorId;
+      request.confirmedBy = hospital._id;
       await request.save();
     }
 
@@ -261,6 +314,35 @@ export const updateScheduleStatus = async (req, res) => {
       emailContent
     );
 
+    if (
+      action === "accepted" &&
+      request?.isRecipientRequest &&
+      request.requestedBy
+    ) {
+      const recipientUser = await User.findById(request.requestedBy, "email fullName role");
+      if (recipientUser?.role === "recipient" && recipientUser.email && hospital) {
+        await sendEmail(
+          recipientUser.email,
+          "Hospital Confirmed Your Blood Request",
+          `
+          <h2>Hospital confirmed your request</h2>
+          <p>Hello <b>${recipientUser.fullName || "Recipient"}</b>,</p>
+          <p>
+            <b>${hospital.fullName}</b> accepted a donor schedule for your blood request.
+            The hospital will continue managing the donation process from their side.
+          </p>
+          <ul>
+            <li><b>Hospital:</b> ${hospital.fullName}</li>
+            <li><b>Blood type:</b> ${request.bloodType || "Not specified"}</li>
+            <li><b>Units needed:</b> ${request.unitsNeeded || 1}</li>
+            <li><b>Status:</b> Confirmed</li>
+          </ul>
+          <p>You can track this request from your recipient dashboard.</p>
+          `
+        );
+      }
+    }
+
     return res.json({ success: true, schedule });
 
   } catch (err) {
@@ -276,74 +358,18 @@ export const updateScheduleStatus = async (req, res) => {
 export const markDonationCompleted = async (req, res) => {
   try {
     const { scheduleId } = req.body;
+    const io = req.app.locals.io;
+    const { schedule, alreadyCompleted } = await completeDonationSchedule(scheduleId, io);
 
-    const schedule = await DonationSchedule.findById(scheduleId).populate("requestId");
-    if (!schedule) return res.status(404).json({ success: false, message: "Schedule not found" });
-
-    schedule.status = "completed";
-    await schedule.save();
-
-    await Donation.create({
-      donorId: schedule.donorId,
-      units: schedule.requestId.unitsNeeded,
-      location: schedule.donorLocation,
-      date: new Date(),
+    return res.json({
+      success: true,
+      message: alreadyCompleted ? "Donation already completed" : "Donation completed",
+      schedule,
     });
 
-    // Update donor with new perk
-    const donor = await User.findById(schedule.donorId);
-    if (donor) {
-      // Add perk for successful donation
-      const benefitDate = new Date();
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + 7); // Valid for 7 days
-
-      const newPerk = {
-        type: "health_checkup",
-        title: "Free Health Checkup",
-        description: "Complimentary blood test, BP and sugar test at any hospital partner",
-        benefitDate: benefitDate,
-        expiryDate: expiryDate,
-        status: "available",
-        donationDate: new Date(),
-        claimedAt: null
-      };
-
-      if (!donor.perks) donor.perks = [];
-      donor.perks.push(newPerk);
-      
-      // Update donation count and last checkup eligibility
-      donor.totalDonations = (donor.totalDonations || 0) + 1;
-      donor.lastHealthCheckupDate = new Date();
-
-      await donor.save();
-    }
-
-    const request = await Request.findById(schedule.requestId._id);
-    request.status = "Fulfilled";
-    request.confirmationStatus = "Confirmed";
-    request.confirmedBy = schedule.donorId;
-    await request.save();
-
-    // Broadcast request fulfilled status to all dashboards
-    const io = req.app.locals.io;
-    if (io) {
-      io.emit("request_fulfilled", {
-        requestId: request._id,
-        status: "Fulfilled",
-        confirmationStatus: "Confirmed",
-        confirmedBy: schedule.donorId,
-        donorId: schedule.donorId,
-        bloodType: request.bloodType,
-        unitsNeeded: request.unitsNeeded,
-        hospital: request.hospital,
-      });
-    }
-
-    return res.json({ success: true, message: "Donation completed", schedule });
-
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ success: false, message: error.message });
   }
 };
 

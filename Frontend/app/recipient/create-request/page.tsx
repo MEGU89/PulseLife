@@ -7,7 +7,6 @@ import { FieldShell, LoadingView, PageSection, Panel, inputClassName } from "@/c
 import { LocationDetector } from "@/components/location-detector";
 import { RoleLayout } from "@/components/role-layout";
 import { apiJson, jsonBody } from "@/lib/api";
-import type { AppUser } from "@/lib/types";
 import { useRoleSession } from "@/hooks/useRoleSession";
 
 type HospitalOption = {
@@ -22,6 +21,7 @@ type HospitalOption = {
 };
 
 const bloodTypes = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
+const organTypes = ["Kidney", "Liver", "Heart", "Lung", "Pancreas", "Intestine", "Cornea", "Bone Marrow"];
 const urgencies = ["HIGH", "MODERATE", "LOW"];
 
 export default function RecipientCreateRequestPage() {
@@ -29,7 +29,9 @@ export default function RecipientCreateRequestPage() {
   const { user, ready } = useRoleSession("recipient");
   const [hospitals, setHospitals] = useState<HospitalOption[]>([]);
   const [form, setForm] = useState({
+    requestType: "blood",
     bloodType: "O+",
+    organType: "Kidney",
     unitsNeeded: "1",
     urgency: "HIGH",
     hospital: "",
@@ -66,8 +68,9 @@ export default function RecipientCreateRequestPage() {
       await apiJson("/request/add", {
         method: "POST",
         body: jsonBody({
-          requestType: "blood",
-          bloodType: form.bloodType,
+          requestType: form.requestType,
+          bloodType: form.requestType === "blood" ? form.bloodType : undefined,
+          organType: form.requestType === "organ" ? form.organType : undefined,
           unitsNeeded: Number(form.unitsNeeded),
           hospital: form.hospital,
           urgency: form.urgency,
@@ -102,32 +105,74 @@ export default function RecipientCreateRequestPage() {
       role="recipient"
       userName={user.fullName}
       title="Create a recipient request"
-      description="Choose a hospital, blood type, urgency, and location details so your request is easier to route."
+      description="Choose a hospital, request type, urgency, and location details so your request is easier to route."
     >
       <PageSection
         title="Request form"
-        description="This form sends your need into the hospital and donor workflow with a cleaner set of fields."
+        description="This form sends your blood or organ need into the hospital workflow with a cleaner set of fields."
       >
         <Panel>
           <form onSubmit={createRequest} className="space-y-5">
             <div className="grid gap-5 md:grid-cols-2">
-              <FieldShell label="Blood type needed">
-                <select className={inputClassName()} value={form.bloodType} onChange={(event) => setForm((current) => ({ ...current, bloodType: event.target.value }))}>
-                  {bloodTypes.map((bloodType) => (
-                    <option key={bloodType} value={bloodType}>
-                      {bloodType}
-                    </option>
-                  ))}
+              <FieldShell label="Request type">
+                <select
+                  className={inputClassName()}
+                  value={form.requestType}
+                  onChange={(event) => setForm((current) => ({ ...current, requestType: event.target.value }))}
+                >
+                  <option value="blood">Blood request</option>
+                  <option value="organ">Organ request</option>
                 </select>
               </FieldShell>
-              <FieldShell label="Units needed">
-                <input className={inputClassName()} type="number" min="1" value={form.unitsNeeded} onChange={(event) => setForm((current) => ({ ...current, unitsNeeded: event.target.value }))} required />
+              <FieldShell label={form.requestType === "blood" ? "Units needed" : "Quantity needed"}>
+                <input
+                  className={inputClassName()}
+                  type="number"
+                  min="1"
+                  value={form.unitsNeeded}
+                  onChange={(event) => setForm((current) => ({ ...current, unitsNeeded: event.target.value }))}
+                  required
+                />
               </FieldShell>
             </div>
 
             <div className="grid gap-5 md:grid-cols-2">
+              {form.requestType === "blood" ? (
+                <FieldShell label="Blood type needed">
+                  <select
+                    className={inputClassName()}
+                    value={form.bloodType}
+                    onChange={(event) => setForm((current) => ({ ...current, bloodType: event.target.value }))}
+                  >
+                    {bloodTypes.map((bloodType) => (
+                      <option key={bloodType} value={bloodType}>
+                        {bloodType}
+                      </option>
+                    ))}
+                  </select>
+                </FieldShell>
+              ) : (
+                <FieldShell label="Organ needed">
+                  <select
+                    className={inputClassName()}
+                    value={form.organType}
+                    onChange={(event) => setForm((current) => ({ ...current, organType: event.target.value }))}
+                  >
+                    {organTypes.map((organType) => (
+                      <option key={organType} value={organType}>
+                        {organType}
+                      </option>
+                    ))}
+                  </select>
+                </FieldShell>
+              )}
+
               <FieldShell label="Urgency">
-                <select className={inputClassName()} value={form.urgency} onChange={(event) => setForm((current) => ({ ...current, urgency: event.target.value }))}>
+                <select
+                  className={inputClassName()}
+                  value={form.urgency}
+                  onChange={(event) => setForm((current) => ({ ...current, urgency: event.target.value }))}
+                >
                   {urgencies.map((urgency) => (
                     <option key={urgency} value={urgency}>
                       {urgency}
@@ -135,20 +180,34 @@ export default function RecipientCreateRequestPage() {
                   ))}
                 </select>
               </FieldShell>
-              <FieldShell label="Search radius in km">
-                <input className={inputClassName()} type="number" min="1" value={form.searchRadiusKm} onChange={(event) => setForm((current) => ({ ...current, searchRadiusKm: event.target.value }))} required />
-              </FieldShell>
             </div>
 
-            <FieldShell label="Destination hospital">
-              <select className={inputClassName()} value={form.hospital} onChange={(event) => setForm((current) => ({ ...current, hospital: event.target.value }))}>
-                {hospitals.map((hospital) => (
-                  <option key={hospital.id} value={hospital.hospitalName}>
-                    {hospital.hospitalName}
-                  </option>
-                ))}
-              </select>
-            </FieldShell>
+            <div className="grid gap-5 md:grid-cols-2">
+              <FieldShell label="Destination hospital">
+                <select
+                  className={inputClassName()}
+                  value={form.hospital}
+                  onChange={(event) => setForm((current) => ({ ...current, hospital: event.target.value }))}
+                >
+                  {hospitals.map((hospital) => (
+                    <option key={hospital.id} value={hospital.hospitalName}>
+                      {hospital.hospitalName}
+                    </option>
+                  ))}
+                </select>
+              </FieldShell>
+
+              <FieldShell label="Search radius in km">
+                <input
+                  className={inputClassName()}
+                  type="number"
+                  min="1"
+                  value={form.searchRadiusKm}
+                  onChange={(event) => setForm((current) => ({ ...current, searchRadiusKm: event.target.value }))}
+                  required
+                />
+              </FieldShell>
+            </div>
 
             {selectedHospital && (
               <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -160,10 +219,12 @@ export default function RecipientCreateRequestPage() {
 
             <LocationDetector
               label="Recipient location"
-              description="Optional but helpful if you want to share a more accurate handoff point."
+              description="Optional but helpful. Auto-detect your current location or type an address and convert it into coordinates."
               onLocationDetected={(latitude, longitude, address) => {
                 setLocation({ latitude, longitude, address });
               }}
+              initialAddress={location?.address || user.address || ""}
+              initialLocation={location || user.location || null}
             />
 
             {message && <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}

@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, minlength: 6 },
     phone: { type: String, required: true, trim: true },
     bloodType: { type: String, enum: ["A+","A-","B+","B-","AB+","AB-","O+","O-"], default: null },
+    gender: { type: String, enum: ["male", "female", "other"], default: null },
     role: { type: String, enum: ["donor","hospital","recipient","user"], default: "user" },
     // Optional hospital identifier for hospital accounts
     hospitalId: { type: String, default: null },
@@ -25,25 +26,42 @@ const userSchema = new mongoose.Schema(
       {
         type: {
           type: String,
-          enum: ["health_checkup"],
-          default: "health_checkup"
+          enum: [
+            "basic_health_checkup",
+            "bp_hemoglobin_check",
+            "basic_health_checkup_bonus",
+            "priority_appointment",
+            "blood_test_report",
+            "premium_donor_badge",
+            "family_emergency_priority"
+          ],
+          default: "basic_health_checkup"
         },
+        tierKey: { type: String, default: null },
         title: String,
         description: String,
         benefitDate: Date, // Date when perk becomes available
-        expiryDate: Date, // 7 days after successful donation
+        expiryDate: Date,
         status: {
           type: String,
           enum: ["available", "used", "expired"],
           default: "available"
         },
         usedAt: Date,
+        scheduleId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "DonationSchedule",
+          default: null
+        },
         donationDate: Date, // Reference to when donation was completed
-        claimedAt: String // Hospital name/ID where perk was used
+        claimedAt: String, // Hospital name/ID where perk was used
+        awardYear: { type: Number, default: null }
       }
     ],
     lastHealthCheckupDate: Date, // Track last checkup date (90-day eligibility)
-    totalDonations: { type: Number, default: 0 } // Track total donations for rewards
+    totalDonations: { type: Number, default: 0 }, // Track total donations for rewards
+    donationsThisYear: { type: Number, default: 0 },
+    nextEligibleDonationDate: { type: Date, default: null }
   },
   { timestamps: true }
 );

@@ -8,12 +8,15 @@ import { apiJson, jsonBody } from "@/lib/api";
 import { useRoleSession } from "@/hooks/useRoleSession";
 
 const bloodTypes = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
+const organTypes = ["Kidney", "Liver", "Heart", "Lung", "Pancreas", "Intestine", "Cornea", "Bone Marrow"];
 const urgencies = ["HIGH", "MODERATE", "LOW"];
 
 export default function HospitalAddRequestPage() {
   const { user, ready } = useRoleSession("hospital");
   const [form, setForm] = useState({
+    requestType: "blood",
     bloodType: "O+",
+    organType: "Kidney",
     unitsNeeded: "1",
     urgency: "HIGH",
     recipientName: "",
@@ -36,8 +39,9 @@ export default function HospitalAddRequestPage() {
       await apiJson("/request/add", {
         method: "POST",
         body: jsonBody({
-          requestType: "blood",
-          bloodType: form.bloodType,
+          requestType: form.requestType,
+          bloodType: form.requestType === "blood" ? form.bloodType : undefined,
+          organType: form.requestType === "organ" ? form.organType : undefined,
           unitsNeeded: Number(form.unitsNeeded),
           hospital: user.fullName,
           urgency: form.urgency,
@@ -47,9 +51,15 @@ export default function HospitalAddRequestPage() {
         }),
       });
 
-      setMessage("Request created successfully and is now visible to donors.");
+      setMessage(
+        form.requestType === "blood"
+          ? "Blood request created successfully and is now visible to donors."
+          : "Organ request created successfully and is now tracked in the hospital workflow.",
+      );
       setForm({
+        requestType: "blood",
         bloodType: "O+",
+        organType: "Kidney",
         unitsNeeded: "1",
         urgency: "HIGH",
         recipientName: "",
@@ -70,33 +80,75 @@ export default function HospitalAddRequestPage() {
       role="hospital"
       userName={user.fullName}
       title="Create hospital request"
-      description="Publish a clear blood request so donors can understand what is needed right away."
+      description="Publish a clear blood or organ request so your hospital team can act on the right need right away."
     >
       <PageSection
         title="Request details"
-        description="Keep the form short and specific so the request becomes easier for donors to act on."
+        description="Keep the form short and specific so the request becomes easier to route and review."
       >
         <Panel>
           <form onSubmit={createRequest} className="space-y-5">
             <div className="grid gap-5 md:grid-cols-2">
-              <FieldShell label="Blood type needed">
-                <select className={inputClassName()} value={form.bloodType} onChange={(event) => setForm((current) => ({ ...current, bloodType: event.target.value }))}>
-                  {bloodTypes.map((bloodType) => (
-                    <option key={bloodType} value={bloodType}>
-                      {bloodType}
-                    </option>
-                  ))}
+              <FieldShell label="Request type">
+                <select
+                  className={inputClassName()}
+                  value={form.requestType}
+                  onChange={(event) => setForm((current) => ({ ...current, requestType: event.target.value }))}
+                >
+                  <option value="blood">Blood request</option>
+                  <option value="organ">Organ request</option>
                 </select>
               </FieldShell>
 
-              <FieldShell label="Units needed">
-                <input className={inputClassName()} type="number" min="1" value={form.unitsNeeded} onChange={(event) => setForm((current) => ({ ...current, unitsNeeded: event.target.value }))} required />
+              <FieldShell label={form.requestType === "blood" ? "Units needed" : "Quantity needed"}>
+                <input
+                  className={inputClassName()}
+                  type="number"
+                  min="1"
+                  value={form.unitsNeeded}
+                  onChange={(event) => setForm((current) => ({ ...current, unitsNeeded: event.target.value }))}
+                  required
+                />
               </FieldShell>
             </div>
 
             <div className="grid gap-5 md:grid-cols-2">
+              {form.requestType === "blood" ? (
+                <FieldShell label="Blood type needed">
+                  <select
+                    className={inputClassName()}
+                    value={form.bloodType}
+                    onChange={(event) => setForm((current) => ({ ...current, bloodType: event.target.value }))}
+                  >
+                    {bloodTypes.map((bloodType) => (
+                      <option key={bloodType} value={bloodType}>
+                        {bloodType}
+                      </option>
+                    ))}
+                  </select>
+                </FieldShell>
+              ) : (
+                <FieldShell label="Organ needed">
+                  <select
+                    className={inputClassName()}
+                    value={form.organType}
+                    onChange={(event) => setForm((current) => ({ ...current, organType: event.target.value }))}
+                  >
+                    {organTypes.map((organType) => (
+                      <option key={organType} value={organType}>
+                        {organType}
+                      </option>
+                    ))}
+                  </select>
+                </FieldShell>
+              )}
+
               <FieldShell label="Urgency">
-                <select className={inputClassName()} value={form.urgency} onChange={(event) => setForm((current) => ({ ...current, urgency: event.target.value }))}>
+                <select
+                  className={inputClassName()}
+                  value={form.urgency}
+                  onChange={(event) => setForm((current) => ({ ...current, urgency: event.target.value }))}
+                >
                   {urgencies.map((urgency) => (
                     <option key={urgency} value={urgency}>
                       {urgency}
@@ -104,11 +156,15 @@ export default function HospitalAddRequestPage() {
                   ))}
                 </select>
               </FieldShell>
-              
             </div>
 
             <FieldShell label="Recipient name" hint="Optional if this request is for a specific patient.">
-              <input className={inputClassName()} value={form.recipientName} onChange={(event) => setForm((current) => ({ ...current, recipientName: event.target.value }))} placeholder="Patient or recipient name" />
+              <input
+                className={inputClassName()}
+                value={form.recipientName}
+                onChange={(event) => setForm((current) => ({ ...current, recipientName: event.target.value }))}
+                placeholder="Patient or recipient name"
+              />
             </FieldShell>
 
             {message && <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}

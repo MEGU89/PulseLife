@@ -1,5 +1,6 @@
 // routes/hospital.js
 import express from "express";
+import Request from "../models/Request.js";
 import User from "../models/User.js";
 import DonationSchedule from "../models/DonationSchedule.js";
 
@@ -124,12 +125,50 @@ router.get("/all", async (req, res) => {
 ----------------------------------------------------------*/
 router.get("/stats", async (req, res) => {
   try {
-    const activeDonors = await User.find({ available: true });
+    const hospitalName = typeof req.query.hospitalName === "string" ? req.query.hospitalName.trim() : "";
+    const activeDonors = await User.countDocuments({
+      role: "donor",
+      available: true,
+      "location.latitude": { $exists: true },
+      "location.longitude": { $exists: true }
+    });
+
+    const requestFilter = hospitalName ? { hospital: hospitalName } : {};
+    const requests = await Request.find(requestFilter, "createdAt status hospital").lean();
+    const requestIds = requests.map((request) => request._id);
+
+    const schedules = requestIds.length
+      ? await DonationSchedule.find({ requestId: { $in: requestIds } })
+          .populate("requestId", "createdAt hospital")
+          .lean()
+      : [];
+
+    let totalMinutes = 0;
+    let matchedCount = 0;
+
+    schedules.forEach((schedule) => {
+      const createdAt = schedule.requestId?.createdAt;
+      if (!createdAt || !schedule.createdAt) return;
+
+      const diffMin = Math.floor((new Date(schedule.createdAt) - new Date(createdAt)) / 1000 / 60);
+      if (diffMin >= 0) {
+        totalMinutes += diffMin;
+        matchedCount += 1;
+      }
+    });
+
+    const pendingSchedules = schedules.filter((schedule) => schedule.status === "pending").length;
+    const completedDonations = schedules.filter((schedule) => schedule.status === "completed").length;
+    const fulfilledRequests = requests.filter((request) => request.status === "Fulfilled").length;
 
     res.json({
       success: true,
-      donorsNearby: activeDonors.length,
-      avgMatchTime: activeDonors.length > 0 ? 3 : 0,
+      donorsNearby: activeDonors,
+      avgMatchTime: matchedCount > 0 ? Math.floor(totalMinutes / matchedCount) : 0,
+      totalSchedules: schedules.length,
+      pendingSchedules,
+      completedDonations,
+      fulfilledRequests,
     });
 
   } catch (err) {
@@ -160,25 +199,47 @@ router.get("/active-donors", async (req, res) => {
 router.get("/schedules/:hospitalName", async (req, res) => {
   try {
     const hospitalName = req.params.hospitalName;
+    const requests = await Request.find({ hospital: hospitalName }, "_id").lean();
+    const requestIds = requests.map((request) => request._id);
 
-    const schedules = await DonationSchedule.find()
+    if (requestIds.length === 0) {
+      return res.json({ success: true, schedules: [] });
+    }
+
+    const schedules = await DonationSchedule.find({ requestId: { $in: requestIds } })
       .populate("donorId", "fullName email")
-      .populate("requestId");
+      .populate("requestId")
+      .sort({ createdAt: -1 });
 
-    const filtered = schedules.filter(
-      (s) => s.requestId?.hospital === hospitalName
-    );
-
-    const formatted = filtered.map((s) => ({
-      _id: s._id,
-      donorName: s.donorId?.fullName,
-      contact: s.contact,
-      date: s.date,
-      time: s.time,
-      notes: s.notes,
-      status: s.status,
-      bloodType: s.requestId?.bloodType,
-      unitsNeeded: s.requestId?.unitsNeeded,
+    const formatted = schedules.map((schedule) => ({
+      _id: schedule._id,
+      donorName: schedule.donorId?.fullName,
+      donorId: schedule.donorId
+        ? {
+            _id: schedule.donorId._id,
+            fullName: schedule.donorId.fullName,
+            email: schedule.donorId.email,
+          }
+        : null,
+      contact: schedule.contact,
+      date: schedule.date,
+      time: schedule.time,
+      notes: schedule.notes,
+      status: schedule.status,
+      hospitalResponse: schedule.hospitalResponse ?? "none",
+      bloodType: schedule.requestId?.bloodType,
+      unitsNeeded: schedule.requestId?.unitsNeeded,
+      requestId: schedule.requestId
+        ? {
+            _id: schedule.requestId._id,
+            hospital: schedule.requestId.hospital,
+            bloodType: schedule.requestId.bloodType,
+            unitsNeeded: schedule.requestId.unitsNeeded,
+            status: schedule.requestId.status,
+            confirmationStatus: schedule.requestId.confirmationStatus,
+          }
+        : null,
+      createdAt: schedule.createdAt,
     }));
 
     res.json({ success: true, schedules: formatted });

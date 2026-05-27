@@ -1,4 +1,4 @@
-# 🩸 Pulse Bank - Smart Blood Donation Management System
+# 🩸 Pulselife - Smart Blood Donation Management System
 
 A comprehensive full-stack blood donation management platform connecting donors, hospitals, and recipients in real-time.
 
@@ -27,7 +27,7 @@ A comprehensive full-stack blood donation management platform connecting donors,
 
 ## 🎯 Overview
 
-Pulse Bank is a modern blood donation platform that facilitates:
+Pulselife is a modern blood donation platform that facilitates:
 - **Donors** to register, schedule donations, and earn rewards
 - **Hospitals** to create blood requests and manage donation schedules
 - **Recipients** to request blood and track request status
@@ -106,7 +106,7 @@ Pulse Bank is a modern blood donation platform that facilitates:
 ## 📁 Project Structure
 
 ```
-PulseBank/
+Pulselife/
 ├── app/                          # Next.js App Router
 │   ├── page.tsx                  # Landing page
 │   ├── layout.tsx                # Root layout
@@ -305,8 +305,8 @@ PulseBank/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/yourusername/PulseBank.git
-cd PulseBank
+git clone https://github.com/yourusername/Pulselife.git
+cd Pulselife
 ```
 
 ### 2. Install Frontend Dependencies
@@ -330,7 +330,7 @@ NEXT_PUBLIC_API_URL=http://localhost:5000
 
 Create `.env` in Backend directory:
 ```env
-MONGO_URI=mongodb://localhost:27017/pulsebank
+MONGO_URI=mongodb://localhost:27017/pulselife
 JWT_SECRET=your_jwt_secret
 PORT=5000
 FRONTEND_URL=http://localhost:3000
@@ -483,7 +483,7 @@ This project is prepared for Render with:
 
 ### Quick Deploy Checklist
 1. Set up MongoDB Atlas cluster
-2. Create the `pulsebank-api` and `pulsebank-web` services from `render.yaml`
+2. Create the `pulselife-api` and `pulselife-web` services from `render.yaml`
 3. Set backend `FRONTEND_URL` to your frontend Render URL
 4. Set frontend `NEXT_PUBLIC_API_URL` to your backend Render URL
 5. Redeploy both services after saving those URLs
@@ -533,7 +533,7 @@ This project is licensed under the MIT License.
 
 ## 👨‍💻 Authors
 
-- **Pulse Bank Team**
+- **Pulselife Team**
 
 ---
 

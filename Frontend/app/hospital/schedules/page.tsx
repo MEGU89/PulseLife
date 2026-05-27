@@ -9,6 +9,31 @@ import { apiJson, jsonBody } from "@/lib/api";
 import type { DonationSchedule } from "@/lib/types";
 import { useRoleSession } from "@/hooks/useRoleSession";
 
+function getScheduledAt(schedule: DonationSchedule) {
+  if (!schedule.date || !schedule.date.includes("-")) {
+    return null;
+  }
+
+  const dateParts = schedule.date.split("-").map(Number);
+  const timeParts = (schedule.time || "00:00").split(":").map(Number);
+
+  if (dateParts.length !== 3 || timeParts.length !== 2 || [...dateParts, ...timeParts].some(Number.isNaN)) {
+    return null;
+  }
+
+  const [first, second, third] = dateParts;
+  const isIsoFormat = String(first).length === 4;
+  const year = isIsoFormat ? first : third;
+  const month = second;
+  const day = isIsoFormat ? third : first;
+  const [hours, minutes] = timeParts;
+
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const parsed = new Date(`${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00+05:30`);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export default function HospitalSchedulesPage() {
   const { user, ready } = useRoleSession("hospital");
   const [schedules, setSchedules] = useState<DonationSchedule[]>([]);
@@ -47,7 +72,11 @@ export default function HospitalSchedulesPage() {
         });
       }
 
-      setMessage(`Schedule marked as ${action}.`);
+      setMessage(
+        action === "completed"
+          ? "Schedule marked as completed and both email confirmations were triggered."
+          : `Schedule marked as ${action}.`
+      );
       await loadSchedules();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to update schedule.");
@@ -57,6 +86,11 @@ export default function HospitalSchedulesPage() {
   if (!ready || !user) {
     return <LoadingView label="Loading hospital schedules..." />;
   }
+
+  const activeSchedules = schedules.filter((schedule) => {
+    const status = schedule.status?.toLowerCase() || "";
+    return status === "pending" || status === "accepted";
+  });
 
   return (
     <RoleLayout
@@ -69,15 +103,15 @@ export default function HospitalSchedulesPage() {
 
       <PageSection
         title="Schedule queue"
-        description="Accept incoming donor schedules when they fit hospital capacity, then mark them complete after donation."
+        description="Accept or reject incoming donor schedules. Once an accepted schedule reaches its booked time, it completes automatically."
       >
         {loading ? (
           <Panel>Loading schedules...</Panel>
-        ) : schedules.length === 0 ? (
-          <EmptyState title="No schedules available" description="You will see donor schedule submissions here after requests start receiving responses." />
+        ) : activeSchedules.length === 0 ? (
+          <EmptyState title="No active schedules available" description="New donor schedule submissions will appear here, and completed ones move to history automatically." />
         ) : (
           <div className="grid gap-4">
-            {schedules.map((schedule) => (
+            {activeSchedules.map((schedule) => (
               <ScheduleCard key={schedule._id} schedule={schedule}>
                 <div className="flex flex-wrap gap-3">
                   {schedule.status === "pending" && (
@@ -98,15 +132,18 @@ export default function HospitalSchedulesPage() {
                       </button>
                     </>
                   )}
-                  {schedule.status === "accepted" && (
-                    <button
-                      type="button"
-                      onClick={() => void updateSchedule(schedule._id, "completed")}
-                      className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-                    >
-                      Mark completed
-                    </button>
-                  )}
+                  {schedule.status === "accepted" && (() => {
+                    const scheduledAt = getScheduledAt(schedule);
+                    const isPastScheduledTime = scheduledAt ? Date.now() >= scheduledAt.getTime() : false;
+
+                    return (
+                      <p className="w-full text-xs text-slate-500">
+                        {isPastScheduledTime
+                          ? "This accepted schedule is waiting for the automatic completion refresh."
+                          : "This accepted schedule will move to completed automatically after the donor's scheduled time."}
+                      </p>
+                    );
+                  })()}
                 </div>
               </ScheduleCard>
             ))}

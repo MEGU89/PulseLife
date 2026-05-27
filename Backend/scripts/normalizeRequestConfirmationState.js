@@ -1,12 +1,13 @@
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 
-import DonationSchedule from "../models/DonationSchedule.js";
+import connectDB, { getMongoUri } from "../config/db.js";
 import Request from "../models/Request.js";
+import { findRequestHospitalUser } from "../utils/requestHospital.js";
 
 dotenv.config();
 
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/pulsebank";
+const MONGO_URI = getMongoUri();
 
 async function normalizeRequest(request) {
   const updates = {};
@@ -16,21 +17,14 @@ async function normalizeRequest(request) {
   }
 
   if (!request.confirmedBy) {
-    const bestSchedule = await DonationSchedule.findOne({
-      requestId: request._id,
-      status: { $in: ["completed", "accepted"] },
-    })
-      .sort({ updatedAt: -1, createdAt: -1 })
-      .select("donorId status")
-      .lean();
-
-    if (bestSchedule?.donorId) {
-      updates.confirmedBy = bestSchedule.donorId;
+    const hospitalUser = await findRequestHospitalUser(request, "_id fullName role");
+    if (hospitalUser?._id) {
+      updates.confirmedBy = hospitalUser._id;
     }
   }
 
   if (Object.keys(updates).length === 0) {
-    return { updated: false, missingDonor: !request.confirmedBy };
+    return { updated: false, missingHospital: !request.confirmedBy };
   }
 
   await Request.findByIdAndUpdate(request._id, updates, {
@@ -40,12 +34,12 @@ async function normalizeRequest(request) {
 
   return {
     updated: true,
-    missingDonor: !updates.confirmedBy && !request.confirmedBy,
+    missingHospital: !updates.confirmedBy && !request.confirmedBy,
   };
 }
 
 async function main() {
-  await mongoose.connect(MONGO_URI);
+  await connectDB(MONGO_URI);
 
   const candidates = await Request.find({
     $or: [
@@ -56,12 +50,12 @@ async function main() {
   }).select("_id status confirmationStatus confirmedBy");
 
   let updatedCount = 0;
-  let missingDonorCount = 0;
+  let missingHospitalCount = 0;
 
   for (const request of candidates) {
     const result = await normalizeRequest(request);
     if (result.updated) updatedCount += 1;
-    if (result.missingDonor) missingDonorCount += 1;
+    if (result.missingHospital) missingHospitalCount += 1;
   }
 
   console.log(
@@ -69,7 +63,7 @@ async function main() {
       {
         scanned: candidates.length,
         updated: updatedCount,
-        missingDonorAfterNormalization: missingDonorCount,
+        missingHospitalAfterNormalization: missingHospitalCount,
       },
       null,
       2,

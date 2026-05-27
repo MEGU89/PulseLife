@@ -1,23 +1,18 @@
-// server.js
+import cors from "cors";
+import dotenv from "dotenv";
 import express from "express";
 import http from "http";
-import cors from "cors";
-import mongoose from "mongoose";
-import dotenv from "dotenv";
 import { Server } from "socket.io";
 
-// Scheduler
-import { initializeDonationScheduler } from "./utils/scheduler.js";
-
-// Routes
+import connectDB, { getMongoUri } from "./config/db.js";
 import authRoutes from "./routes/auth.js";
 import donorRoutes from "./routes/donor.js";
-import requestRoutes from "./routes/request.js";
-import scheduleRoutes from "./routes/schedule.js";
+import emailRoutes from "./routes/email.js";
 import hospitalRoutes from "./routes/hospital.js";
 import hospitalStatsRoutes from "./routes/hospitalStats.js";
-import emailRoutes from "./routes/email.js";
-
+import requestRoutes from "./routes/request.js";
+import scheduleRoutes from "./routes/schedule.js";
+import { initializeDonationScheduler } from "./utils/scheduler.js";
 
 dotenv.config();
 
@@ -25,8 +20,8 @@ const app = express();
 const server = http.createServer(app);
 
 const defaultFrontendOrigins = [
-  "https://pulsebank.netlify.app",
-  "https://pulsebank-dev.netlify.app",
+  "https://pulselife.netlify.app",
+  "https://pulselife-dev.netlify.app",
   "http://localhost:3000",
   "http://localhost:3001",
 ];
@@ -51,9 +46,6 @@ const allowedOrigins = [
   ...new Set([...defaultFrontendOrigins, ...configuredFrontendOrigins]),
 ];
 
-// ----------------------
-// SOCKET.IO
-// ----------------------
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
@@ -63,92 +55,73 @@ const io = new Server(server, {
 });
 
 io.on("connection", (socket) => {
-  console.log("🔌 Socket Connected:", socket.id);
+  console.log("Socket connected:", socket.id);
 
   socket.on("register", (userId) => {
     socket.join(userId);
-    console.log(`👤 User joined room: ${userId}`);
+    console.log(`User joined room: ${userId}`);
   });
 
   socket.on("new_request", (payload) => {
-    console.log("🚨 New urgent request:", payload);
+    console.log("New urgent request:", payload);
     io.emit("urgent_request", payload);
   });
 
   socket.on("disconnect", () => {
-    console.log("❌ Socket Disconnected:", socket.id);
+    console.log("Socket disconnected:", socket.id);
   });
 });
 
-// Make IO available in controllers
 app.locals.io = io;
 
-// ----------------------
-// MIDDLEWARE
-// ----------------------
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
 
-    return callback(new Error("Origin not allowed by CORS"));
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+      return callback(new Error("Origin not allowed by CORS"));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
   res.status(200).json({ success: true, status: "ok" });
 });
 
-// ----------------------
-// API ROUTES
-// ----------------------
 app.use("/auth", authRoutes);
 app.use("/donor", donorRoutes(io));
 app.use("/request", requestRoutes);
 app.use("/schedule", scheduleRoutes);
-
-// Merge hospital routes
 app.use("/hospital", hospitalRoutes);
 app.use("/hospital", hospitalStatsRoutes);
-
 app.use("/email", emailRoutes);
 
-// ----------------------
-// ERROR HANDLER
-// ----------------------
-app.use((err, req, res, next) => {
-  console.error("❌ API Error:", err.message);
+app.use((err, _req, res, _next) => {
+  console.error("API error:", err.message);
   res.status(500).json({ success: false, message: err.message });
 });
 
-// 404 Handler
-app.use((req, res) => {
+app.use((_req, res) => {
   res.status(404).json({ success: false, message: "Route not found" });
 });
 
-// ----------------------
-// MONGO CONNECTION (FIXED)
-// ----------------------
-const MONGO = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/pulsebank";
+const mongoUri = getMongoUri();
 
-mongoose
-  .connect(MONGO) // ✅ NO OLD OPTIONS
+connectDB(mongoUri)
   .then(() => {
-    console.log("✅ MongoDB Connected Successfully");
-
-    // Initialize donation completion scheduler
     initializeDonationScheduler(io);
 
-    const PORT = process.env.PORT || 5000;
-    server.listen(PORT, () =>
-      console.log(`🚀 Server running on port ${PORT}`)
-    );
+    const port = process.env.PORT || 5000;
+    server.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+    });
   })
-  .catch((err) => {
-    console.error("❌ MongoDB Connection Error:", err);
+  .catch((error) => {
+    console.error("MongoDB connection error:", error);
   });

@@ -10,9 +10,15 @@ import { RoleLayout } from "@/components/role-layout";
 import { apiJson, jsonBody } from "@/lib/api";
 import { haversineKm, roundDistanceKm } from "@/lib/distance";
 import { formatDate } from "@/lib/format";
-import { isActiveRequest } from "@/lib/request-state";
+import { isOpenRequestForDonors } from "@/lib/request-state";
 import type { BloodRequest } from "@/lib/types";
 import { useRoleSession } from "@/hooks/useRoleSession";
+
+const DONOR_MEDICAL_RULES = {
+  minAge: 18,
+  maxAge: 65,
+  minWeightKg: 50,
+} as const;
 
 function ScheduleDonationPageContent() {
   const router = useRouter();
@@ -31,6 +37,9 @@ function ScheduleDonationPageContent() {
     date: "",
     time: "",
     notes: "",
+    age: "",
+    weightKg: "",
+    hasRecentFeverOrInfection: "no",
   });
 
   useEffect(() => {
@@ -52,7 +61,7 @@ function ScheduleDonationPageContent() {
 
         setCooldownInfo(cooldownResponse);
 
-        const baseRequest = (requestResponse.requests || []).find((item) => item._id === requestId && isActiveRequest(item)) || null;
+        const baseRequest = (requestResponse.requests || []).find((item) => item._id === requestId && isOpenRequestForDonors(item)) || null;
         const matchedRequest =
           baseRequest &&
           user?.location?.latitude &&
@@ -138,6 +147,25 @@ function ScheduleDonationPageContent() {
       return;
     }
 
+    const age = Number(form.age);
+    const weightKg = Number(form.weightKg);
+    const hasRecentFeverOrInfection = form.hasRecentFeverOrInfection === "yes";
+
+    if (Number.isNaN(age) || age < DONOR_MEDICAL_RULES.minAge || age > DONOR_MEDICAL_RULES.maxAge) {
+      setError(`Age must be between ${DONOR_MEDICAL_RULES.minAge} and ${DONOR_MEDICAL_RULES.maxAge} years before scheduling.`);
+      return;
+    }
+
+    if (Number.isNaN(weightKg) || weightKg < DONOR_MEDICAL_RULES.minWeightKg) {
+      setError(`Weight must be at least ${DONOR_MEDICAL_RULES.minWeightKg} kg before scheduling.`);
+      return;
+    }
+
+    if (hasRecentFeverOrInfection) {
+      setError("You cannot schedule a donation if you have had a recent fever or infection.");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
     setSuccess("");
@@ -153,6 +181,11 @@ function ScheduleDonationPageContent() {
           date: form.date,
           time: form.time,
           notes: form.notes,
+          medicalEligibility: {
+            age,
+            weightKg,
+            hasRecentFeverOrInfection,
+          },
         }),
       });
 
@@ -205,6 +238,55 @@ function ScheduleDonationPageContent() {
                   Your next available donation date is {formatDate(nextEligibleDate)}. You can still book a slot on or after that date.
                 </div>
               )}
+
+              <div className="rounded-[24px] border border-rose-100 bg-rose-50/70 p-5">
+                <div className="space-y-2">
+                  <h3 className="text-lg font-black tracking-tight text-slate-950">Important medical checks before donation</h3>
+                  <p className="text-sm text-slate-600">
+                    Complete these eligibility details first. Scheduling continues only when the donor meets these basic rules.
+                  </p>
+                </div>
+                <div className="mt-4 grid gap-5 md:grid-cols-2">
+                  <FieldShell label="Age" hint="Allowed range: 18 to 65 years">
+                    <input
+                      className={inputClassName()}
+                      type="number"
+                      min={DONOR_MEDICAL_RULES.minAge}
+                      max={DONOR_MEDICAL_RULES.maxAge}
+                      value={form.age}
+                      onChange={(event) => setForm((current) => ({ ...current, age: event.target.value }))}
+                      placeholder="Enter your age"
+                      required
+                    />
+                  </FieldShell>
+
+                  <FieldShell label="Weight (kg)" hint="Minimum required: 50 kg">
+                    <input
+                      className={inputClassName()}
+                      type="number"
+                      min={DONOR_MEDICAL_RULES.minWeightKg}
+                      step="0.1"
+                      value={form.weightKg}
+                      onChange={(event) => setForm((current) => ({ ...current, weightKg: event.target.value }))}
+                      placeholder="Enter your weight"
+                      required
+                    />
+                  </FieldShell>
+                </div>
+                <div className="mt-5 grid gap-5 md:grid-cols-1">
+                  <FieldShell label="Recent fever or infection?" hint="Donor must not have a recent fever or infection">
+                    <select
+                      className={inputClassName()}
+                      value={form.hasRecentFeverOrInfection}
+                      onChange={(event) => setForm((current) => ({ ...current, hasRecentFeverOrInfection: event.target.value }))}
+                      required
+                    >
+                      <option value="no">No</option>
+                      <option value="yes">Yes</option>
+                    </select>
+                  </FieldShell>
+                </div>
+              </div>
 
               <div className="grid gap-5 md:grid-cols-2">
                 <FieldShell label="Contact number">

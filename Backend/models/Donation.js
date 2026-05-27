@@ -8,6 +8,12 @@ const donationSchema = new mongoose.Schema(
       required: true,
     },
 
+    scheduleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DonationSchedule",
+      default: null,
+    },
+
     hospital: {
       type: String,
       required: true,
@@ -38,5 +44,6 @@ const donationSchema = new mongoose.Schema(
 
 // Index for fast history lookups
 donationSchema.index({ donorId: 1 });
+donationSchema.index({ scheduleId: 1 }, { unique: true, sparse: true });
 
 export default mongoose.model("Donation", donationSchema);
