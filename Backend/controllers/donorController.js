@@ -57,7 +57,10 @@ export const getDonationHistory = async (req, res) => {
 ----------------------------------------------------- */
 export const getUrgentRequests = async (req, res) => {
   try {
-    const requests = await Request.find({ requestType: "blood" }).sort({ createdAt: -1 });
+    const requests = await Request.find({
+      requestType: { $in: ["blood", "organ"] },
+      isRecipientRequest: { $ne: true },
+    }).sort({ createdAt: -1 });
 
     const formatted = requests.map((r) => ({
       _id: r._id,

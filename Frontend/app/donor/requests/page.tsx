@@ -7,7 +7,7 @@ import { RequestCard } from "@/components/data-cards";
 import { RoleLayout } from "@/components/role-layout";
 import { apiJson } from "@/lib/api";
 import { haversineKm, roundDistanceKm } from "@/lib/distance";
-import { isOpenRequestForDonors } from "@/lib/request-state";
+import { canDonorScheduleRequest, isOpenRequestForDonors } from "@/lib/request-state";
 import type { BloodRequest } from "@/lib/types";
 import { useRoleSession } from "@/hooks/useRoleSession";
 
@@ -66,11 +66,11 @@ export default function DonorRequestsPage() {
       role="donor"
       userName={user.fullName}
       title="Emergency requests"
-      description="Use this page to scan all active blood needs before committing to a donation schedule."
+      description="Use this page to scan all active requests before deciding whether you can schedule a donation."
     >
       <PageSection
         title="Request feed"
-        description="Each card shows urgency, units needed, contact details, and a direct path into scheduling."
+        description="Each card shows urgency, units needed, contact details, and whether the request can move into scheduling."
       >
         {loading ? (
           <Panel>Loading requests...</Panel>
@@ -87,9 +87,17 @@ export default function DonorRequestsPage() {
               <RequestCard
                 key={request._id}
                 request={request}
-                actionHref={`/donor/schedule-donation?requestId=${request._id}`}
-                actionLabel="Schedule for this request"
-              />
+                actionHref={
+                  canDonorScheduleRequest(request) ? `/donor/schedule-donation?requestId=${request._id}` : undefined
+                }
+                actionLabel={canDonorScheduleRequest(request) ? "Schedule for this request" : undefined}
+              >
+                {request.requestType === "organ" && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                    This organ request is visible to donors for awareness, but scheduling is currently available for blood requests only.
+                  </div>
+                )}
+              </RequestCard>
             ))}
           </div>
         )}

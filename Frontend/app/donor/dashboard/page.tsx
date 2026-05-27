@@ -11,7 +11,7 @@ import { RoleLayout } from "@/components/role-layout";
 import { apiJson, jsonBody } from "@/lib/api";
 import { haversineKm, roundDistanceKm } from "@/lib/distance";
 import { getRequestMapSummary } from "@/lib/request-display";
-import { isOpenRequestForDonors } from "@/lib/request-state";
+import { canDonorScheduleRequest, isOpenRequestForDonors } from "@/lib/request-state";
 import { saveStoredSession } from "@/lib/session";
 import type { BloodRequest, DonationSchedule } from "@/lib/types";
 import { useRoleSession } from "@/hooks/useRoleSession";
@@ -180,11 +180,11 @@ export default function DonorDashboardPage() {
   ];
 
   return (
-    <RoleLayout
+      <RoleLayout
       role="donor"
       userName={user.fullName}
       title="Donor dashboard"
-      description="Review active blood requests, update your availability, and manage donation schedules without extra clutter."
+      description="Review active requests, update your availability, and manage donation schedules without extra clutter."
       actions={
         <div className="flex flex-wrap gap-3">
           <button
@@ -263,9 +263,17 @@ export default function DonorDashboardPage() {
               <RequestCard
                 key={request._id}
                 request={request}
-                actionHref={`/donor/schedule-donation?requestId=${request._id}`}
-                actionLabel="Schedule donation"
-              />
+                actionHref={
+                  canDonorScheduleRequest(request) ? `/donor/schedule-donation?requestId=${request._id}` : undefined
+                }
+                actionLabel={canDonorScheduleRequest(request) ? "Schedule donation" : undefined}
+              >
+                {request.requestType === "organ" && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                    Organ requests are visible here for awareness, but scheduling is currently limited to blood requests.
+                  </div>
+                )}
+              </RequestCard>
             ))}
           </div>
         )}

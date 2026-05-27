@@ -9,7 +9,11 @@ export function isOpenRequestForMatching(request: BloodRequest) {
 }
 
 export function isOpenRequestForDonors(request: BloodRequest) {
-  return request.requestType !== "organ" && isOpenRequestForMatching(request) && !request.isRecipientRequest;
+  return isOpenRequestForMatching(request) && !request.isRecipientRequest;
+}
+
+export function canDonorScheduleRequest(request: BloodRequest) {
+  return isOpenRequestForDonors(request) && request.requestType === "blood";
 }
 
 export function isPendingRequest(request: BloodRequest) {

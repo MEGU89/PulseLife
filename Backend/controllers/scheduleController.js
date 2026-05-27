@@ -11,6 +11,12 @@ import { completeDonationSchedule } from "../utils/completeDonation.js";
 import { findRequestHospitalUser } from "../utils/requestHospital.js";
 import { formatDateInputValue, parseScheduleDate } from "../utils/scheduleDate.js";
 
+function sendScheduleEmailsInBackground(tasks) {
+  void Promise.allSettled(tasks.map((task) => task())).catch((error) => {
+    console.error("[scheduleDonation] Email dispatch error:", error);
+  });
+}
+
 /* ---------------------------------------------
    1️⃣ DONOR CREATES DONATION SCHEDULE
 ----------------------------------------------*/
@@ -162,53 +168,6 @@ export const scheduleDonation = async (req, res) => {
       </div>
     ` : "";
 
-    /* EMAIL TO DONOR */
-    await sendEmail(
-      donor.email,
-      "Blood Donation Schedule Confirmation",
-      `
-      <h2>❤️ Donation Successfully Scheduled</h2>
-      <p>Hello <b>${donor.fullName}</b>,</p>
-      <p>Your donation schedule:</p>
-      <ul>
-        <li><b>Date:</b> ${date}</li>
-        <li><b>Time:</b> ${time}</li>
-        <li><b>Hospital:</b> ${request.hospital}</li>
-        <li><b>Contact:</b> ${contact}</li>
-      </ul>
-      
-      ${donorLocationHtml}
-      ${hospitalLocationHtml}
-      
-      <p>Please arrive 10-15 minutes early. Thank you for saving lives! 🦸‍♂️</p>
-      `
-    );
-
-    /* EMAIL TO HOSPITAL */
-    if (hospitalUser) {
-      await sendEmail(
-        hospitalUser.email,
-        "New Donor Scheduled a Donation",
-        `
-        <h2>🩸 New Donation Schedule</h2>
-        <p>A donor has offered to donate blood.</p>
-        <ul>
-          <li>Donor: <b>${donor.fullName}</b></li>
-          <li>Date: <b>${date}</b></li>
-          <li>Time: <b>${time}</b></li>
-          <li>Contact: <b>${contact}</b></li>
-          <li>Blood Type: <b>${request.bloodType}</b></li>
-          <li>Units Needed: <b>${request.unitsNeeded}</b></li>
-        </ul>
-        
-        ${donorLocationHtml}
-        ${hospitalLocationHtml}
-        
-        <p>Please confirm or reject this schedule from your dashboard.</p>
-        `
-      );
-    }
-
     // SOCKET NOTIFICATION
     const io = req.app.locals.io;
     if (io && hospitalUser) {
@@ -220,6 +179,56 @@ export const scheduleDonation = async (req, res) => {
         contact,
       });
     }
+
+    sendScheduleEmailsInBackground([
+      () =>
+        sendEmail(
+          donor.email,
+          "Blood Donation Schedule Confirmation",
+          `
+          <h2>❤️ Donation Successfully Scheduled</h2>
+          <p>Hello <b>${donor.fullName}</b>,</p>
+          <p>Your donation schedule:</p>
+          <ul>
+            <li><b>Date:</b> ${date}</li>
+            <li><b>Time:</b> ${time}</li>
+            <li><b>Hospital:</b> ${request.hospital}</li>
+            <li><b>Contact:</b> ${contact}</li>
+          </ul>
+          
+          ${donorLocationHtml}
+          ${hospitalLocationHtml}
+          
+          <p>Please arrive 10-15 minutes early. Thank you for saving lives! 🦸‍♂️</p>
+          `,
+        ),
+      ...(hospitalUser
+        ? [
+            () =>
+              sendEmail(
+                hospitalUser.email,
+                "New Donor Scheduled a Donation",
+                `
+                <h2>🩸 New Donation Schedule</h2>
+                <p>A donor has offered to donate blood.</p>
+                <ul>
+                  <li>Donor: <b>${donor.fullName}</b></li>
+                  <li>Date: <b>${date}</b></li>
+                  <li>Time: <b>${time}</b></li>
+                  <li>Contact: <b>${contact}</b></li>
+                  <li>Blood Type: <b>${request.bloodType}</b></li>
+                  <li>Units Needed: <b>${request.unitsNeeded}</b></li>
+                </ul>
+                
+                ${donorLocationHtml}
+                ${hospitalLocationHtml}
+                
+                <p>Please confirm or reject this schedule from your dashboard.</p>
+                `,
+              ),
+          ]
+        : []),
+    ]);
 
     return res.json({ success: true, schedule });
 
@@ -284,44 +293,44 @@ export const updateScheduleStatus = async (req, res) => {
       });
     }
 
-    // Send email update with location info
-    let emailContent = "";
-    if (action === "accepted") {
-      emailContent = `
-        <h2>✅ Donation Schedule Accepted</h2>
-        <p>Great news! The hospital has accepted your donation schedule.</p>
-        <p>Your donation details:</p>
-        <ul>
-          <li><b>Date:</b> ${schedule.date}</li>
-          <li><b>Time:</b> ${schedule.time}</li>
-          <li><b>Hospital:</b> ${request.hospital}</li>
-        </ul>
-        ${hospitalLocationHtml}
-        <p>Please arrive 10-15 minutes early. Thank you for your contribution! 🦸‍♂️</p>
-      `;
-    } else {
-      emailContent = `
-        <h2>❌ Donation Schedule Rejected</h2>
-        <p>Unfortunately, the hospital has rejected your donation schedule.</p>
-        <p>Please try scheduling another time or contact the hospital directly.</p>
-        ${hospitalLocationHtml}
-      `;
-    }
+    const recipientUser =
+      action === "accepted" && request?.isRecipientRequest && request.requestedBy
+        ? await User.findById(request.requestedBy, "email fullName role")
+        : null;
 
-    await sendEmail(
-      donor.email,
-      `Donation Schedule ${action === "accepted" ? "Accepted" : "Rejected"}`,
-      emailContent
-    );
+    const emailContent =
+      action === "accepted"
+        ? `
+          <h2>✅ Donation Schedule Accepted</h2>
+          <p>Great news! The hospital has accepted your donation schedule.</p>
+          <p>Your donation details:</p>
+          <ul>
+            <li><b>Date:</b> ${schedule.date}</li>
+            <li><b>Time:</b> ${schedule.time}</li>
+            <li><b>Hospital:</b> ${request.hospital}</li>
+          </ul>
+          ${hospitalLocationHtml}
+          <p>Please arrive 10-15 minutes early. Thank you for your contribution! 🦸‍♂️</p>
+        `
+        : `
+          <h2>❌ Donation Schedule Rejected</h2>
+          <p>Unfortunately, the hospital has rejected your donation schedule.</p>
+          <p>Please try scheduling another time or contact the hospital directly.</p>
+          ${hospitalLocationHtml}
+        `;
 
-    if (
-      action === "accepted" &&
-      request?.isRecipientRequest &&
-      request.requestedBy
-    ) {
-      const recipientUser = await User.findById(request.requestedBy, "email fullName role");
-      if (recipientUser?.role === "recipient" && recipientUser.email && hospital) {
-        await sendEmail(
+    const emailTasks = [
+      () =>
+        sendEmail(
+          donor.email,
+          `Donation Schedule ${action === "accepted" ? "Accepted" : "Rejected"}`,
+          emailContent,
+        ),
+    ];
+
+    if (recipientUser?.role === "recipient" && recipientUser.email && hospital) {
+      emailTasks.push(() =>
+        sendEmail(
           recipientUser.email,
           "Hospital Confirmed Your Blood Request",
           `
@@ -338,10 +347,14 @@ export const updateScheduleStatus = async (req, res) => {
             <li><b>Status:</b> Confirmed</li>
           </ul>
           <p>You can track this request from your recipient dashboard.</p>
-          `
-        );
-      }
+          `,
+        ),
+      );
     }
+
+    void Promise.allSettled(emailTasks.map((task) => task())).catch((error) => {
+      console.error("[updateScheduleStatus] Email dispatch error:", error);
+    });
 
     return res.json({ success: true, schedule });
 
