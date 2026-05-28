@@ -39,7 +39,7 @@ export default function AboutPage() {
           <div className="space-y-4">
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-rose-500">About the project</p>
-              <h1 className="text-4xl font-black tracking-tight text-slate-950 md:text-5xl">Pulselife is designed to make urgent blood coordination feel lighter.</h1>
+              <h1 className="text-4xl font-black tracking-tight text-slate-950 md:text-5xl">Pulselife is designed to make urgent blood and organ coordination feel lighter.</h1>
               <p className="max-w-3xl text-sm leading-7 text-slate-600">
                 The project brings donors, hospitals, and recipients into one shared system where requests, schedules,
                 and outcomes are easier to understand. Instead of cluttered screens, the product aims for clear
@@ -71,20 +71,20 @@ export default function AboutPage() {
 
         <Panel className="space-y-4">
           <h2 className="text-2xl font-black tracking-tight text-slate-950">Current role flows inside Pulselife</h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-[24px] bg-slate-50 p-5">
-              <h3 className="text-lg font-black tracking-tight text-slate-900">Donor</h3>
-              <p className="mt-2 text-sm leading-7 text-slate-600">Review requests, share availability, schedule donations, and follow benefits or completed contributions.</p>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-[24px] bg-slate-50 p-5">
+                <h3 className="text-lg font-black tracking-tight text-slate-900">Donor</h3>
+                <p className="mt-2 text-sm leading-7 text-slate-600">Review blood and organ requests, share availability, schedule eligible blood donations, and follow benefits or completed contributions.</p>
+              </div>
+              <div className="rounded-[24px] bg-slate-50 p-5">
+                <h3 className="text-lg font-black tracking-tight text-slate-900">Hospital</h3>
+                <p className="mt-2 text-sm leading-7 text-slate-600">Create urgent blood and organ requests, manage schedules, and keep a clean history of ongoing and fulfilled needs.</p>
+              </div>
+              <div className="rounded-[24px] bg-slate-50 p-5">
+                <h3 className="text-lg font-black tracking-tight text-slate-900">Recipient</h3>
+                <p className="mt-2 text-sm leading-7 text-slate-600">Submit blood and organ requests through hospitals, watch request progress, and manage profile and notification preferences.</p>
+              </div>
             </div>
-            <div className="rounded-[24px] bg-slate-50 p-5">
-              <h3 className="text-lg font-black tracking-tight text-slate-900">Hospital</h3>
-              <p className="mt-2 text-sm leading-7 text-slate-600">Create urgent blood requests, manage schedules, and keep a clean history of ongoing and fulfilled needs.</p>
-            </div>
-            <div className="rounded-[24px] bg-slate-50 p-5">
-              <h3 className="text-lg font-black tracking-tight text-slate-900">Recipient</h3>
-              <p className="mt-2 text-sm leading-7 text-slate-600">Submit requests through hospitals, watch request progress, and manage profile and notification preferences.</p>
-            </div>
-          </div>
         </Panel>
 
         <div className="flex items-center justify-between rounded-[28px] border border-rose-100 bg-rose-50 px-6 py-5">

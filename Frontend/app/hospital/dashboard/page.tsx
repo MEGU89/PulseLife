@@ -170,7 +170,7 @@ export default function HospitalDashboardPage() {
       role="hospital"
       userName={user.fullName}
       title="Hospital dashboard"
-      description="Create urgent blood or organ requests, review donor schedules, and keep hospital demand visible with a clearer workspace."
+      description="Create urgent blood and organ requests, review donor schedules, and keep hospital demand visible with a clearer workspace."
       actions={
         <div className="flex flex-wrap gap-3">
           <Link href="/hospital/add-request" className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
@@ -291,7 +291,7 @@ export default function HospitalDashboardPage() {
           <Panel className="space-y-3">
             <FilePlus2 className="h-6 w-6 text-rose-600" />
             <h3 className="text-xl font-black tracking-tight text-slate-950">Create request</h3>
-            <p className="text-sm leading-7 text-slate-600">Add a clean emergency blood or organ request with the right urgency and quantity details.</p>
+            <p className="text-sm leading-7 text-slate-600">Add a clean emergency blood and organ request with the right urgency and quantity details.</p>
             <Link href="/hospital/add-request" className="text-sm font-semibold text-rose-700">Open form</Link>
           </Panel>
           <Panel className="space-y-3">

@@ -17,12 +17,12 @@ import { PublicSiteHeader } from "@/components/public-site-header";
 const highlights = [
   {
     title: "Donor-friendly flow",
-    description: "Donors can spot active requests, share availability, schedule a visit, and track completed donations in one place.",
+    description: "Donors can spot active blood and organ requests, share availability, schedule eligible blood visits, and track completed donations in one place.",
     icon: HeartHandshake,
   },
   {
     title: "Hospital control desk",
-    description: "Hospitals can publish blood requests, review schedules, and watch confirmed activity without jumping through heavy screens.",
+    description: "Hospitals can publish blood and organ requests, review schedules, and watch confirmed activity without jumping through heavy screens.",
     icon: Building2,
   },
   {
@@ -33,13 +33,15 @@ const highlights = [
 ];
 
 const steps = [
-  "Hospitals or recipients create a blood request with urgency, units needed, and location details.",
-  "Donors review requests, choose one that fits, and schedule a donation with contact information.",
+  "Hospitals or recipients create a blood or organ request with urgency, units needed, and location details.",
+  "Donors review requests, and eligible blood requests can move into scheduling with contact information.",
   "Hospitals accept or reject schedules, then mark donations complete after handoff.",
-  "Pulselife keeps a clearer record of requests, schedules, donor perks, and profile details.",
+  "Pulselife keeps a clearer record of blood and organ requests, schedules, donor perks, and profile details.",
 ];
 
 export default function HomePage() {
+  const currentYear = new Date().getFullYear();
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#fecdd3,transparent_30%),linear-gradient(180deg,#fff7ed_0%,#fffdf8_42%,#f8fafc_100%)] text-slate-900">
       <PublicSiteHeader
@@ -57,14 +59,14 @@ export default function HomePage() {
           <div className="space-y-8">
             <div className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white/90 px-4 py-2 text-sm font-semibold text-rose-700">
               <Sparkles className="h-4 w-4" />
-              Simple emergency blood coordination
+              Simple emergency blood and organ coordination
             </div>
             <div className="space-y-5">
               <h1 className="max-w-4xl text-4xl font-black leading-tight tracking-tight text-slate-950 md:text-7xl">
                 Pulselife is a calmer way to connect donors, hospitals, and recipients fast.
               </h1>
               <p className="max-w-3xl text-base leading-8 text-slate-600 md:text-lg">
-                This project is built to reduce confusion during urgent blood needs. It gives hospitals a request desk,
+                This project is built to reduce confusion during urgent blood and organ needs. It gives hospitals a request desk,
                 donors a clear action path, and recipients a simpler way to ask for help. The goal is to make emergency
                 coordination feel more human, more readable, and easier to act on.
               </p>
@@ -98,7 +100,7 @@ export default function HomePage() {
             </div>
             <div className="space-y-4 text-sm leading-7 text-slate-600">
               <p>Pulselife currently supports three major roles: donor, hospital, and recipient.</p>
-              <p>Hospitals can add emergency blood requests, review donor schedules, and track request history.</p>
+              <p>Hospitals can add emergency blood and organ requests, review donor schedules, and track request history.</p>
               <p>Donors can review active requests, set availability, book donation slots, and see perks or stats after completed donations.</p>
               <p>Recipients can create requests, check current status, and keep their personal details and settings updated.</p>
             </div>
@@ -177,7 +179,10 @@ export default function HomePage() {
 
       <footer className="border-t border-white/70 px-4 py-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
-          <p>Pulselife focuses on emergency blood coordination with cleaner donor, hospital, and recipient journeys.</p>
+          <div className="space-y-1">
+            <p>Pulselife focuses on emergency blood and organ coordination with cleaner donor, hospital, and recipient journeys.</p>
+            <p>Copyright {currentYear} PulseLife. All rights reserved.</p>
+          </div>
           <div className="flex gap-5">
             <Link href="/about" className="font-semibold transition hover:text-rose-700">
               About

@@ -46,19 +46,19 @@ const roleCards: Array<{
   {
     role: "donor",
     title: "Donor",
-    subtitle: "Respond to urgent requests and schedule donations.",
+    subtitle: "Respond to urgent blood and organ requests and schedule eligible donations.",
     icon: HeartPulse,
   },
   {
     role: "hospital",
     title: "Hospital",
-    subtitle: "Create requests, review schedules, and manage blood demand.",
+    subtitle: "Create blood and organ requests, review schedules, and manage demand.",
     icon: Building2,
   },
   {
     role: "recipient",
     title: "Recipient",
-    subtitle: "Submit blood requests and track request progress simply.",
+    subtitle: "Submit blood and organ requests and track request progress simply.",
     icon: UserRound,
   },
 ];

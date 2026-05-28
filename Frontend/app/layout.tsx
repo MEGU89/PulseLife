@@ -5,9 +5,9 @@ import "leaflet/dist/leaflet.css";
 import "../styles/globals.css"
 
 export const metadata: Metadata = {
-  title: "Pulselife | Emergency Blood Coordination",
+  title: "Pulselife | Emergency Blood and Organ Coordination",
   description:
-    "Pulselife connects donors, hospitals, and recipients through a calmer emergency blood coordination experience.",
+    "Pulselife connects donors, hospitals, and recipients through a calmer emergency blood and organ coordination experience.",
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
