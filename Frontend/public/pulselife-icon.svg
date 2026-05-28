@@ -1,0 +1,23 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pulselife-icon-gradient" x1="84" y1="84" x2="428" y2="428" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff0f4f" />
+      <stop offset="1" stop-color="#e11d48" />
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="128" fill="url(#pulselife-icon-gradient)" />
+  <path
+    d="M256 365L146 255C113 222 113 169 146 136C175 107 222 105 254 131L256 133L258 131C290 105 337 107 366 136C399 169 399 222 366 255L256 365Z"
+    stroke="white"
+    stroke-width="26"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M144 262H205L228 224L256 308L284 180L307 262H368"
+    stroke="white"
+    stroke-width="26"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

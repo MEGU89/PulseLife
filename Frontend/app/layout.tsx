@@ -9,11 +9,11 @@ export const metadata: Metadata = {
   description:
     "Pulselife connects donors, hospitals, and recipients through a calmer emergency blood and organ coordination experience.",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/favicon.ico",
+    icon: "/pulselife-icon.svg",
+    shortcut: "/pulselife-icon.svg",
+    apple: "/pulselife-icon.svg",
   },
-}
+};
 
 export default function RootLayout({
   children,
@@ -26,5 +26,5 @@ export default function RootLayout({
         {children}
       </body>
     </html>
-  )
+  );
 }

@@ -20,36 +20,6 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/auth/loading.js"
-    ],
-    "/donor/dashboard/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/donor/dashboard/page.js"
-    ],
-    "/hospital/dashboard/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/hospital/dashboard/page.js"
-    ],
-    "/hospital/add-request/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/hospital/add-request/page.js"
-    ],
-    "/hospital/schedules/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/hospital/schedules/page.js"
-    ],
-    "/hospital/history/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/hospital/history/page.js"
-    ],
-    "/recipient/dashboard/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/recipient/dashboard/page.js"
     ]
   }
 }

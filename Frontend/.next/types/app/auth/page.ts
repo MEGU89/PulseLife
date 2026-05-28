@@ -1,4 +1,4 @@
-// File: C:\Users\harsh\Downloads\PulseBank-main\PulseBank-main\Frontend\app\auth\page.tsx
+// File: C:\Users\harsh\Downloads\PulseLife--Main\PulseLife\Frontend\app\auth\page.tsx
 import * as entry from '../../../../app/auth/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
